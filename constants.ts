@@ -1,5 +1,7 @@
 import { IeltsTest } from './types';
 
+export const TESTS_VERSION = 2;
+
 export const IELTS_TESTS: IeltsTest[] = [
   {
     id: 1,

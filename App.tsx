@@ -5,7 +5,7 @@ import TestScreen from './components/TestScreen';
 import AdminDashboardScreen from './components/admin/AdminDashboardScreen';
 import FeedbackViewer from './components/FeedbackViewer';
 import { IeltsTest, CompletedTest } from './types';
-import { IELTS_TESTS } from './constants';
+import { IELTS_TESTS, TESTS_VERSION } from './constants';
 import Button from './components/common/Button';
 import Logo from './components/icons/Logo';
 import { validateApiKey } from './services/geminiService';
@@ -21,17 +21,36 @@ const App: React.FC = () => {
 
   const [tests, setTests] = useState<IeltsTest[]>(() => {
     try {
-      const savedTests = window.localStorage.getItem(APP_TESTS_KEY);
-      return savedTests ? JSON.parse(savedTests) : IELTS_TESTS;
+      const savedDataString = window.localStorage.getItem(APP_TESTS_KEY);
+      if (!savedDataString) {
+        return IELTS_TESTS; // No saved data, use defaults
+      }
+
+      const savedData = JSON.parse(savedDataString);
+
+      // Check for old format (just an array) or a version mismatch.
+      if (Array.isArray(savedData) || savedData.version !== TESTS_VERSION) {
+        // Data is outdated, force update to defaults.
+        // This will overwrite the old local storage in the useEffect below.
+        return IELTS_TESTS;
+      }
+      
+      // Data is valid and the version matches.
+      return savedData.tests;
+
     } catch (error) {
       console.error("Could not load tests from localStorage, using defaults.", error);
-      return IELTS_TESTS;
+      return IELTS_TESTS; // Fallback on any error
     }
   });
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(APP_TESTS_KEY, JSON.stringify(tests));
+      const dataToSave = {
+        version: TESTS_VERSION,
+        tests: tests,
+      };
+      window.localStorage.setItem(APP_TESTS_KEY, JSON.stringify(dataToSave));
     } catch (error) {
       console.error("Could not save tests to localStorage", error);
     }

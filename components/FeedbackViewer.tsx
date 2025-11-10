@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import { CompletedTest } from '../types';
 import FeedbackPhase from './FeedbackPhase';
 import VocabularyCard from './VocabularyCard';
+import Button from './common/Button';
 
 interface FeedbackViewerProps {
   testResult: CompletedTest;
+  onRewrite: (testResult: CompletedTest) => void;
+  onExit: () => void;
 }
 
 type ActiveTab = 'feedback' | 'vocabulary';
 
-const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ testResult }) => {
+const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ testResult, onRewrite, onExit }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('feedback');
 
   const renderContent = () => {
@@ -75,6 +78,19 @@ const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ testResult }) => {
       </div>
 
       {renderContent()}
+
+      <div className="mt-8 p-6 bg-slate-100 border-t border-slate-200 rounded-b-lg flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+        <p className="font-semibold text-slate-700">What would you like to do next?</p>
+        <div className="flex items-center gap-4">
+          <Button onClick={() => onRewrite(testResult)} variant="primary">
+            Rewrite This Test
+          </Button>
+          <Button onClick={onExit} variant="secondary">
+            Study Another Test
+          </Button>
+        </div>
+      </div>
+
     </div>
   );
 };

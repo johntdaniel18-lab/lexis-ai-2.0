@@ -5,7 +5,7 @@ export const TESTS_VERSION = 2;
 export const IELTS_TESTS: IeltsTest[] = [
   {
     id: 1,
-    title: "Practice Test 1: Tourism & Sports",
+    title: "Test 01",
     tasks: [
       {
         prompt: "The graph below shows the number of enquiries received by the Tourist Information Office in one city over a six-month period in 2011.",
@@ -18,7 +18,7 @@ export const IELTS_TESTS: IeltsTest[] = [
   },
   {
     id: 2,
-    title: "Practice Test 2: Environment & Urbanization",
+    title: "Test 02",
     tasks: [
       {
         prompt: "The diagram below shows the process of recycling plastic bottles. Summarise the information by selecting and reporting the main features, and make comparisons where relevant. You should write at least 150 words."
@@ -30,7 +30,7 @@ export const IELTS_TESTS: IeltsTest[] = [
   },
   {
     id: 3,
-    title: "Practice Test 3: Health & Lifestyle",
+    title: "Test 03",
     tasks: [
       {
         prompt: "The table below gives information about the consumption and production of potatoes in five different regions in 2006. Summarise the information by selecting and reporting the main features, and make comparisons where relevant. You should write at least 150 words."

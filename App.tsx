@@ -58,6 +58,8 @@ const App: React.FC = () => {
 
   const [selectedTest, setSelectedTest] = useState<IeltsTest | null>(null);
   const [viewingCompletedTest, setViewingCompletedTest] = useState<CompletedTest | null>(null);
+  const [completedTestForRewrite, setCompletedTestForRewrite] = useState<CompletedTest | null>(null);
+
 
   const [completedTests, setCompletedTests] = useState<CompletedTest[]>(() => {
     try {
@@ -113,30 +115,49 @@ const App: React.FC = () => {
     setUserRole(null);
     setSelectedTest(null);
     setViewingCompletedTest(null);
+    setCompletedTestForRewrite(null);
     sessionStorage.removeItem(API_KEY_STORAGE_KEY);
   }, []);
 
   const handleSelectTest = useCallback((test: IeltsTest) => {
     setSelectedTest(test);
+    setCompletedTestForRewrite(null); // Clear rewrite state when starting a fresh test
   }, []);
   
   const handleViewCompletedTest = useCallback((completedTest: CompletedTest) => {
     setViewingCompletedTest(completedTest);
+    setCompletedTestForRewrite(null); // Clear rewrite state
   }, []);
 
   const handleExit = useCallback(() => {
     setSelectedTest(null);
     setViewingCompletedTest(null);
+    setCompletedTestForRewrite(null); // Ensure rewrite state is cleared
   }, []);
 
-  const handleSaveTestResult = useCallback((result: Omit<CompletedTest, 'id' | 'completionDate'>) => {
+  const handleCompleteTest = useCallback((result: Omit<CompletedTest, 'id' | 'completionDate'>) => {
     const newCompletedTest: CompletedTest = {
       ...result,
       id: `completed-${Date.now()}`,
       completionDate: new Date().toISOString(),
     };
     setCompletedTests(prev => [...prev, newCompletedTest]);
+    setSelectedTest(null);
+    setViewingCompletedTest(newCompletedTest);
   }, []);
+
+  const handleRewriteTest = useCallback((testToRewrite: CompletedTest) => {
+    const originalTest = tests.find(t => t.id === testToRewrite.testId);
+    if (originalTest) {
+      setCompletedTestForRewrite(testToRewrite);
+      setSelectedTest(originalTest);
+      setViewingCompletedTest(null);
+    } else {
+      console.error("Could not find original test to rewrite.");
+      // In a real app, you might want to show an error to the user here.
+    }
+  }, [tests]);
+
 
   const handleAddNewTest = useCallback((newTest: Omit<IeltsTest, 'id'>) => {
     setTests(prevTests => [
@@ -161,10 +182,15 @@ const App: React.FC = () => {
     }
     if (userRole === 'student') {
       if (viewingCompletedTest) {
-        return <FeedbackViewer testResult={viewingCompletedTest} />;
+        return <FeedbackViewer testResult={viewingCompletedTest} onRewrite={handleRewriteTest} onExit={handleExit} />;
       }
       if (selectedTest) {
-        return <TestScreen test={selectedTest} onExit={handleExit} onSaveTestResult={handleSaveTestResult} />;
+        return <TestScreen 
+          test={selectedTest} 
+          onExit={handleExit} 
+          onCompleteTest={handleCompleteTest}
+          completedTestForRewrite={completedTestForRewrite} 
+        />;
       }
       return <DashboardScreen tests={tests} onSelectTest={handleSelectTest} completedTests={completedTests} onViewCompletedTest={handleViewCompletedTest} />;
     }

@@ -77,6 +77,8 @@ export interface CompletedTest {
   essay2: string;
   feedback: EssayFeedback;
   vocabulary: VocabularyItem[];
+  chatHistoryTask1: ChatMessage[];
+  chatHistoryTask2: ChatMessage[];
 }
 
 

@@ -3,6 +3,7 @@ import { EssayFeedback, Improvement } from '../types';
 import HighlightedEssay from './HighlightedEssay';
 import FeedbackSidebar from './FeedbackSidebar';
 import ScoreCriterion from './ScoreCriterion';
+import Button from './common/Button';
 
 // --- ICONS & CARD COMPONENT ---
 const LightningIcon: React.FC = () => (
@@ -47,9 +48,11 @@ interface FeedbackPhaseProps {
   feedback: EssayFeedback;
   essay1: string;
   essay2: string;
+  onRewrite?: () => void;
+  onStudyAnother?: () => void;
 }
 
-const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({ feedback, essay1, essay2 }) => {
+const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({ feedback, essay1, essay2, onRewrite, onStudyAnother }) => {
   const [activeTaskTab, setActiveTaskTab] = useState<'task1' | 'task2'>('task1');
   
   const initialImprovementId = useMemo(() => {
@@ -165,6 +168,20 @@ const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({ feedback, essay1, essay2 
           />
         </aside>
       </div>
+
+       {onRewrite && onStudyAnother && (
+        <div className="p-6 bg-slate-100 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+            <p className="font-semibold text-slate-700">What would you like to do next?</p>
+            <div className="flex items-center gap-4">
+            <Button onClick={onRewrite} variant="primary">
+                Rewrite This Test
+            </Button>
+            <Button onClick={onStudyAnother} variant="secondary">
+                Study Another Test
+            </Button>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

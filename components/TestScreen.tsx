@@ -3,7 +3,6 @@ import { IeltsTest, TestPhase, EssayFeedback, CompletedTest, VocabularyItem, Cha
 import TargetScoreSelectionPhase from './TargetScoreSelectionPhase';
 import PreparationPhase from './PreparationPhase';
 import WritingPhase from './WritingPhase';
-import FeedbackPhase from './FeedbackPhase';
 import OutlineReviewPhase from './OutlineReviewPhase';
 import TimeSelectionPhase from './TimeSelectionPhase';
 import Spinner from './common/Spinner';
@@ -13,38 +12,45 @@ import { Chat } from '@google/genai';
 interface TestScreenProps {
   test: IeltsTest;
   onExit: () => void;
-  onSaveTestResult: (result: Omit<CompletedTest, 'id' | 'completionDate'>) => void;
+  onCompleteTest: (result: Omit<CompletedTest, 'id' | 'completionDate'>) => void;
+  completedTestForRewrite?: CompletedTest | null;
 }
 
-const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
-  const [phase, setPhase] = useState<TestPhase>(TestPhase.TARGET_SCORE_SELECTION);
-  const [targetScore, setTargetScore] = useState<number | null>(null);
-  const [language, setLanguage] = useState<'en' | 'vi'>('en');
+const TestScreen: React.FC<TestScreenProps> = ({ test, onExit, onCompleteTest, completedTestForRewrite }) => {
+  const [phase, setPhase] = useState<TestPhase>(() => 
+    completedTestForRewrite ? TestPhase.OUTLINE_REVIEW : TestPhase.TARGET_SCORE_SELECTION
+  );
+  const [targetScore, setTargetScore] = useState<number | null>(() => 
+    completedTestForRewrite ? completedTestForRewrite.targetScore : null
+  );
+  const [language, setLanguage] = useState<'en' | 'vi'>(() =>
+    completedTestForRewrite ? (['en', 'vi'].includes('en') ? 'en' : 'en') : 'en' // Simplified logic, assumes 'en' for now
+  );
   const [writingDuration, setWritingDuration] = useState<number | null>(null);
 
-  // --- State lifted from PreparationPhase ---
-  const [messagesTask1, setMessagesTask1] = useState<ChatMessage[]>([]);
-  const [messagesTask2, setMessagesTask2] = useState<ChatMessage[]>([]);
+  const [messagesTask1, setMessagesTask1] = useState<ChatMessage[]>(() =>
+    completedTestForRewrite ? completedTestForRewrite.chatHistoryTask1 : []
+  );
+  const [messagesTask2, setMessagesTask2] = useState<ChatMessage[]>(() =>
+    completedTestForRewrite ? completedTestForRewrite.chatHistoryTask2 : []
+  );
   const [sessionTask1, setSessionTask1] = useState<Chat | null>(null);
   const [sessionTask2, setSessionTask2] = useState<Chat | null>(null);
-  const [vocabularyTask1, setVocabularyTask1] = useState<VocabularyItem[]>([]);
+  
+  const [vocabularyTask1, setVocabularyTask1] = useState<VocabularyItem[]>(() =>
+    completedTestForRewrite ? completedTestForRewrite.vocabulary : []
+  );
   const [vocabularyTask2, setVocabularyTask2] = useState<VocabularyItem[]>([]);
+  
   const [isPrepLoading, setIsPrepLoading] = useState(false);
   const [prepError, setPrepError] = useState<string | null>(null);
   const isTask2Initialized = useRef(false);
-  // --- End of lifted state ---
   
-  // --- State for outlines ---
   const [outlines, setOutlines] = useState<{ task1Outline?: string; task2Outline?: string } | null>(null);
-
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<EssayFeedback | null>(null);
-  const [submittedEssay1, setSubmittedEssay1] = useState<string>('');
-  const [submittedEssay2, setSubmittedEssay2] = useState<string>('');
   
-  // State to sync WritingPhase and PreparationPhase(review)
   const [activeWritingTask, setActiveWritingTask] = useState<'task1' | 'task2'>('task1');
 
   const handleGoalsSet = useCallback((goals: { score: number, language: 'en' | 'vi' }) => {
@@ -84,7 +90,6 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
       }
   };
 
-
   const handleSubmission = useCallback(async (essay1: string, essay2: string) => {
     if (targetScore === null) {
       setError("Target score not set. Please restart the test.");
@@ -92,8 +97,6 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
     }
     setIsLoading(true);
     setError(null);
-    setSubmittedEssay1(essay1);
-    setSubmittedEssay2(essay2);
     
     const combinedVocabulary = [...vocabularyTask1, ...vocabularyTask2].reduce((acc, current) => {
         if (!acc.find(item => item.word.toLowerCase() === current.word.toLowerCase())) {
@@ -104,29 +107,30 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
 
     try {
       const result = await getEssayFeedback(test, essay1, essay2, targetScore, language);
-      setFeedback(result);
-      onSaveTestResult({
+      
+      const testResultPayload = {
         testId: test.id,
-        testTitle: test.title,
+        testTitle: completedTestForRewrite ? `${test.title} (Rewrite)` : test.title,
         targetScore,
         essay1,
         essay2,
         feedback: result,
         vocabulary: combinedVocabulary,
-      });
-      setPhase(TestPhase.FEEDBACK); 
+        chatHistoryTask1: messagesTask1,
+        chatHistoryTask2: messagesTask2,
+      };
+
+      onCompleteTest(testResultPayload);
     } catch (err: any) {
       handleError(err, setError);
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Only stop loading on error, as success unmounts the component
     }
-  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onSaveTestResult, language]);
+  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onCompleteTest, language, completedTestForRewrite, messagesTask1, messagesTask2]);
   
-    // --- Chat logic moved from PreparationPhase ---
   const handleInitializeTask = useCallback(async (taskNumber: 1 | 2) => {
     if (targetScore === null) return;
     if (taskNumber === 2 && isTask2Initialized.current) return;
-    if (taskNumber === 1 && messagesTask1.length > 0) return; // Already initialized
+    if (taskNumber === 1 && messagesTask1.length > 0) return; 
     if (taskNumber === 2) isTask2Initialized.current = true;
     
     setPrepError(null);
@@ -178,12 +182,11 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
       }
     } catch (err: any) {
       handleError(err, setPrepError);
-      setMessages(newMessages); // Revert to user message only
+      setMessages(newMessages); 
     } finally {
       setIsPrepLoading(false);
     }
   }, [sessionTask1, sessionTask2, messagesTask1, messagesTask2]);
-  // --- End of chat logic ---
 
   const renderPhase = () => {
     if (isLoading) {
@@ -249,32 +252,23 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
               <PreparationPhase
                   test={test}
                   targetScore={targetScore!}
-                  onComplete={() => {}} // No-op in review mode
+                  onComplete={() => {}} 
                   mode="review"
                   language={language}
                   messagesTask1={messagesTask1}
                   messagesTask2={messagesTask2}
                   vocabularyTask1={vocabularyTask1}
                   vocabularyTask2={vocabularyTask2}
-                  isLoading={false} // No loading in review mode
-                  error={null} // No errors in review mode
-                  onInitializeTask={() => {}} // No-op in review mode
-                  onSendMessage={() => {}} // No-op in review mode
+                  isLoading={false} 
+                  error={null} 
+                  onInitializeTask={() => {}} 
+                  onSendMessage={() => {}} 
                   outlines={outlines}
                   activeWritingTask={activeWritingTask}
               />
             </aside>
           </div>
         )
-      case TestPhase.FEEDBACK:
-        // After submission, the feedback report is displayed here.
-        return feedback ? (
-          <FeedbackPhase 
-            feedback={feedback} 
-            essay1={submittedEssay1} 
-            essay2={submittedEssay2} 
-          />
-        ) : <div className="text-center">Generating and saving your feedback...</div>;
       default:
         return <div>Invalid phase.</div>;
     }

@@ -68,6 +68,9 @@ const WritingPhase: React.FC<WritingPhaseProps> = ({ test, onSubmit, durationInS
   }, []);
 
   const handleSubmit = () => {
+    if (timeLeft === 0) {
+       // Optional: Add a confirmation if time is up, or just submit
+    }
     try {
       localStorage.removeItem(autoSaveKey);
     } catch (error) {

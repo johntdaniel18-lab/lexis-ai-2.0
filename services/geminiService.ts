@@ -2,6 +2,7 @@
 import { GoogleGenAI, Chat, Type, Part, GenerateContentResponse } from "@google/genai";
 import { IeltsTest, EssayFeedback, Improvement, Task1BandScores, Task2BandScores, VocabularyItem, ChatMessage } from "../types";
 import { TASK_1_BAND_DESCRIPTORS, TASK_2_BAND_DESCRIPTORS } from "../bandDescriptors";
+import { retrieveContext } from "./ragService";
 
 const API_KEY_STORAGE_KEY = 'lexis-ai-api-key';
 
@@ -116,28 +117,34 @@ export const startPreparationChat = async (test: IeltsTest, taskNumber: 1 | 2, t
   const commonRules = `
 **LANGUAGE RULE:** You MUST conduct this entire conversation in ${languageName}.
 **TERMINOLOGY RULE:** All specific IELTS terminology (e.g., Task 1, Task 2, Coherence and Cohesion, Lexical Resource) MUST ALWAYS remain in English.
-**VOCABULARY RULE:** All vocabulary you provide in the JSON block (the word, its definition, and the example) MUST remain in English.`;
+**VOCABULARY RULE:** All vocabulary you provide in the JSON block (the word, its definition, and the example) MUST ALWAYS remain in English.`;
 
   const vocabularyPrompting = `First, in your conversational text, provide a concise list of 5-7 words. Next to each word, you MUST add a brief parenthetical explanation of why it's useful for this task. For example: "Here is some useful vocabulary: significant (to describe important changes), fluctuate (for data that goes up and down), steadily (for consistent trends)."
 Second, immediately after that list, provide a separate JSON block with the full details for those words. The JSON should be enclosed in triple backticks like this: \`\`\`json [...] \`\`\`. Each item in the JSON array must have 'word' (string), 'definition' (string), and 'example' (string) keys. Ensure the JSON is well-formed and **entirely in English**.`;
 
   const concludingPrompt = `Immediately after providing the vocabulary, you MUST conclude your response by asking if they feel ready to start writing. Remind them to click the "I'm Ready to Write!" button when they are ready. Do not add any other text after this.`;
 
+  const ragInstruction = `
+**CORE INSTRUCTION:** For every question the student asks, you will be provided with CONTEXT from an expert knowledge base. You MUST base your answer primarily on this provided CONTEXT. If the context is not relevant, you can use your general knowledge but state that the provided information wasn't a perfect match.`;
+
   const task1SystemInstruction = `You are an expert IELTS writing tutor. Your student is aiming for a band score of ${targetScore}. 
 Your goal is to guide them through analyzing Task 1.
 ${commonRules}
+${ragInstruction}
 
-Follow this structured 5-step process. Ask one question at a time. Do not move to the next step until the current one is complete.
+Follow this structured 6-step process. Ask one question at a time. Do not move to the next step until the current one is complete.
 
-Step 1: IDENTIFY OVERVIEW. Ask the student to identify the single most outstanding feature or main trend from the chart/diagram. This will form their overview paragraph. Guide them until they have a clear, high-level understanding.
+Step 1: ANALYZE PROMPT. Ask the student to analyze the prompt by identifying the chart type, what it measures, and the time period. Guide them to paraphrase this for their introduction.
 
-Step 2: IDENTIFY INDIVIDUAL TRENDS. Ask the student to describe the specific trend or key information for EACH subject/category shown in the data.
+Step 2: IDENTIFY OVERVIEW. Ask the student to identify the single most outstanding feature or main trend from the chart/diagram. This will form their overview paragraph. Guide them until they have a clear, high-level understanding.
 
-Step 3: ORGANIZE PARAGRAPHS. After identifying all individual trends, ask the student how they would group these subjects into two separate body paragraphs. Guide them towards a logical grouping (e.g., by similarity, by contrast).
+Step 3: IDENTIFY INDIVIDUAL TRENDS. Ask the student to describe the specific trend or key information for EACH subject/category shown in the data.
 
-Step 4: DETAIL THE PARAGRAPHS. Once the groups are decided, go through each planned body paragraph one by one. For each paragraph, ask the student to provide the specific data, numbers, and details they would write about for the subjects in that group. Check their numbers for accuracy against the prompt if possible.
+Step 4: ORGANIZE PARAGRAPHS. After identifying all individual trends, ask the student how they would group these subjects into two separate body paragraphs. Guide them towards a logical grouping (e.g., by similarity, by contrast).
 
-Step 5: PROVIDE VOCABULARY. ONLY AFTER the student has detailed the content for BOTH body paragraphs, will you provide relevant vocabulary.
+Step 5: DETAIL THE PARAGRAPHS. Once the groups are decided, go through each planned body paragraph one by one. For each paragraph, ask the student to provide the specific data, numbers, and details they would write about for the subjects in that group. Check their numbers for accuracy against the prompt if possible.
+
+Step 6: PROVIDE VOCABULARY. ONLY AFTER the student has detailed the content for BOTH body paragraphs, will you provide relevant vocabulary.
 ${vocabularyPrompting}
 
 ${concludingPrompt}
@@ -147,19 +154,26 @@ Keep your other responses concise and encouraging. Start the conversation now by
   const task2SystemInstruction = `You are an expert IELTS writing tutor. Your student is aiming for a band score of ${targetScore}. 
 Your goal is to guide them through analyzing Task 2.
 ${commonRules}
+${ragInstruction}
 
-Follow this structured process. Ask one question at a time.
+Follow this structured 6-step process. Ask one question at a time. Do not move to the next step until the current one is complete.
 
-1. UNDERSTAND THE PROMPT: Help the student understand the question type and what it asks for.
-2. BRAINSTORM IDEAS: Guide them to brainstorm main ideas for their body paragraphs.
-3. ORGANIZE PARAGRAPHS: Ask them to decide which ideas will go into which body paragraph.
-4. PROVIDE EXAMPLES: For each body paragraph, ask the student to think of a specific example or supporting detail for their main idea.
-5. PROVIDE VOCABULARY: ONLY AFTER they have provided examples, will you provide relevant vocabulary.
+Step 1: UNDERSTAND THE PROMPT. Help the student understand the question type and what it asks for.
+
+Step 2: BRAINSTORM IDEAS. Guide them to brainstorm 2-3 main ideas that will become their body paragraphs.
+
+Step 3: PLAN INTRODUCTION. After brainstorming, guide the student to plan their introduction, including how they will paraphrase the question and write a clear thesis statement that mentions their main ideas.
+
+Step 4: DEVELOP BODY PARAGRAPHS. For each main idea, ask the student to think of a specific example or supporting detail.
+
+Step 5: PLAN CONCLUSION. Guide the student to plan their conclusion by explaining how they will summarize their main points and restate their thesis.
+
+Step 6: PROVIDE VOCABULARY. ONLY AFTER the student has a complete plan (intro, body paragraphs, and conclusion), will you provide relevant vocabulary.
 ${vocabularyPrompting}
 
 ${concludingPrompt}
 
-Keep your other responses concise and encouraging. Start the conversation now by introducing Task 2 and asking your first question about the prompt.`;
+Keep your other responses concise and encouraging. Start the conversation now by introducing Task 2 and asking your first question for Step 1.`;
 
   const systemInstruction = taskNumber === 1 ? task1SystemInstruction : task2SystemInstruction;
 
@@ -201,8 +215,25 @@ export const continuePreparationChat = async (session: Chat, message: string): P
   if (!session) {
     throw new Error("Chat session not initialized.");
   }
-  // FIX: Explicitly type the return value of withRetry to resolve 'unknown' type on response.
-  const response = await withRetry<GenerateContentResponse>(() => session.sendMessage({ message }));
+
+  // 1. Retrieve context from our local knowledge base
+  const context = retrieveContext(message);
+  
+  // 2. Augment the user's message with the retrieved context and instructions
+  const augmentedMessage = `
+---
+CONTEXT:
+${context}
+---
+
+Based primarily on the CONTEXT above, please answer my question.
+My Question: "${message}"
+`;
+
+  // 3. Send the augmented message to Gemini
+  const response = await withRetry<GenerateContentResponse>(() => session.sendMessage({ message: augmentedMessage }));
+  
+  // 4. Parse the response as usual
   return parseVocabularyAndText(response.text);
 };
 
@@ -219,7 +250,15 @@ export const getEssayOutlines = async (
 
   const formatChatHistory = (history: ChatMessage[]): string => {
     if (history.length === 0) return "No conversation was had for this task.";
-    return history.map(msg => `${msg.sender === 'ai' ? 'Tutor' : 'Student'}: ${msg.text}`).join('\n');
+    // Filter out the augmented prompt details to keep the history clean
+    return history.map(msg => {
+        if (msg.sender === 'user' && msg.text.includes('CONTEXT:')) {
+            const match = msg.text.match(/My Question: "([\s\S]*)"/);
+            const cleanText = match ? match[1] : msg.text;
+            return `Student: ${cleanText}`;
+        }
+        return `${msg.sender === 'ai' ? 'Tutor' : 'Student'}: ${msg.text}`;
+    }).join('\n');
   };
 
   const hasTask1History = chatHistoryTask1.some(m => m.sender === 'user');
@@ -300,6 +339,18 @@ export const getEssayOutlines = async (
 
 
 export const getEssayFeedback = async (test: IeltsTest, essay1: string, essay2: string, targetScore: number, language: 'en' | 'vi'): Promise<EssayFeedback> => {
+  // Caching layer to ensure identical inputs get identical outputs
+  const cacheKey = `feedback-cache::${essay1}::${essay2}::${targetScore}::${language}`;
+  try {
+    const cachedFeedback = sessionStorage.getItem(cacheKey);
+    if (cachedFeedback) {
+      console.log("Returning cached feedback.");
+      return JSON.parse(cachedFeedback);
+    }
+  } catch (error) {
+    console.warn("Could not read from session cache.", error);
+  }
+
   const ai = getAiClient();
   const model = 'gemini-2.5-pro';
   
@@ -332,6 +383,13 @@ ${essay2}
 
 
 **YOUR EVALUATION INSTRUCTIONS (MUST be followed exactly):**
+**CRITICAL SCORING RULE:** Your evaluation MUST be a direct and rigorous application of the provided IELTS Band Descriptors. Avoid holistic impressions; base your score purely on the evidence you have documented in the feedback text for each criterion. Your final score must be a logical consequence of this step-by-step analysis.
+
+**Chain-of-Thought Scoring Process:** For each of the 4 criteria in BOTH tasks, you MUST follow this internal thought process before assigning a score:
+    a. First, internally analyze the essay against the band descriptors for that specific criterion.
+    b. Second, write down the detailed, actionable feedback paragraph explaining the strengths and weaknesses that justify a specific band score.
+    c. FINALLY, based ONLY on the evidence documented in step 'b', assign the numerical score (1-9).
+
 1.  **Language Requirement:** You MUST write all textual feedback (e.g., \`overallFeedback\`, the \`feedback\` for each criterion, \`strengths\`, \`areasForImprovement\`, and the \`explanation\` for each improvement) in **${languageName}**.
 2.  **Terminology Rule:** All IELTS criteria keys (e.g., 'TaskAchievement', 'LexicalResource'), the names of the tasks ("Task 1", "Task 2"), and the overall JSON structure itself MUST remain in English. **Do not translate the JSON keys.**
 3.  **Handle Empty or Underlength Essays:**
@@ -434,6 +492,7 @@ ${essay2}
     config: {
       responseMimeType: "application/json",
       responseSchema: feedbackSchema,
+      temperature: 0.1,
     },
   }));
 
@@ -449,6 +508,14 @@ ${essay2}
       source: 'AI',
     }))
   };
+
+  // Save to cache after successful API call
+  try {
+    sessionStorage.setItem(cacheKey, JSON.stringify(processedFeedback));
+    console.log("Saved feedback to session cache.");
+  } catch (error) {
+    console.warn("Could not save feedback to session cache.", error);
+  }
 
   return processedFeedback;
 };

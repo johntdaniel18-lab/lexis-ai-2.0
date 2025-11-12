@@ -4,6 +4,8 @@ import HighlightedEssay from './HighlightedEssay';
 import FeedbackSidebar from './FeedbackSidebar';
 import ScoreCriterion from './ScoreCriterion';
 import Button from './common/Button';
+import Spinner from './common/Spinner';
+import MarkdownRenderer from './common/MarkdownRenderer';
 
 // --- ICONS & CARD COMPONENT ---
 const LightningIcon: React.FC = () => (
@@ -42,17 +44,43 @@ const StrengthCard: React.FC<{ text: string }> = ({ text }) => (
     </div>
 );
 
+// --- MODEL ANSWER DISPLAY ---
+interface ModelAnswerDisplayProps {
+    prompt: string;
+    modelAnswer: string;
+}
+const ModelAnswerDisplay: React.FC<ModelAnswerDisplayProps> = ({ prompt, modelAnswer }) => (
+    <div className="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+        <h5 className="font-bold text-slate-800 text-base">Model Answer</h5>
+        <p className="text-xs text-slate-500 mt-1 mb-3 italic">Prompt: "{prompt}"</p>
+        <div className="p-3 bg-white rounded-md border border-slate-200">
+            <MarkdownRenderer text={modelAnswer} />
+        </div>
+    </div>
+);
 
 // --- MAIN COMPONENT ---
 interface FeedbackPhaseProps {
   feedback: EssayFeedback;
   essay1: string;
   essay2: string;
-  onRewrite?: () => void;
-  onStudyAnother?: () => void;
+  originalTestPrompt1?: string;
+  originalTestPrompt2?: string;
+  onGenerateModelAnswer: (taskNumber: 1 | 2) => void;
+  modelAnswers: { task1: string | null; task2: string | null };
+  isModelAnswerLoading: boolean;
 }
 
-const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({ feedback, essay1, essay2, onRewrite, onStudyAnother }) => {
+const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({ 
+    feedback, 
+    essay1, 
+    essay2, 
+    originalTestPrompt1,
+    originalTestPrompt2,
+    onGenerateModelAnswer,
+    modelAnswers,
+    isModelAnswerLoading,
+}) => {
   const [activeTaskTab, setActiveTaskTab] = useState<'task1' | 'task2'>('task1');
   
   const initialImprovementId = useMemo(() => {
@@ -94,9 +122,16 @@ const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({ feedback, essay1, essay2,
     if (activeTaskTab === 'task1') {
       return (
         <div className="space-y-6">
-          <div className="flex items-center">
-             <h4 className="text-2xl font-bold text-slate-800">Task 1 Essay Analysis</h4>
-             {getWordCountPill(task1WordCount, 150)}
+          <div className="flex items-center justify-between">
+             <div className="flex items-center">
+                <h4 className="text-2xl font-bold text-slate-800">Task 1 Essay Analysis</h4>
+                {getWordCountPill(task1WordCount, 150)}
+             </div>
+             {!modelAnswers.task1 && (
+                <Button variant="secondary" onClick={() => onGenerateModelAnswer(1)} disabled={isModelAnswerLoading}>
+                    {isModelAnswerLoading ? 'Generating...' : 'Show Band 9 Model Answer'}
+                </Button>
+            )}
           </div>
           <HighlightedEssay
             essay={essay1}
@@ -104,14 +139,23 @@ const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({ feedback, essay1, essay2,
             selectedImprovementId={selectedImprovementId}
             onSelectImprovement={handleSelectImprovement}
           />
+          {isModelAnswerLoading && !modelAnswers.task1 && <div className="text-center"><Spinner /></div>}
+          {modelAnswers.task1 && originalTestPrompt1 && <ModelAnswerDisplay prompt={originalTestPrompt1} modelAnswer={modelAnswers.task1} />}
         </div>
       );
     }
     return (
        <div className="space-y-6">
-          <div className="flex items-center">
-            <h4 className="text-2xl font-bold text-slate-800">Task 2 Essay Analysis</h4>
-            {getWordCountPill(task2WordCount, 250)}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+                <h4 className="text-2xl font-bold text-slate-800">Task 2 Essay Analysis</h4>
+                {getWordCountPill(task2WordCount, 250)}
+            </div>
+             {!modelAnswers.task2 && (
+                <Button variant="secondary" onClick={() => onGenerateModelAnswer(2)} disabled={isModelAnswerLoading}>
+                     {isModelAnswerLoading ? 'Generating...' : 'Show Band 9 Model Answer'}
+                </Button>
+            )}
           </div>
           <HighlightedEssay
             essay={essay2}
@@ -119,6 +163,8 @@ const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({ feedback, essay1, essay2,
             selectedImprovementId={selectedImprovementId}
             onSelectImprovement={handleSelectImprovement}
           />
+          {isModelAnswerLoading && !modelAnswers.task2 && <div className="text-center"><Spinner /></div>}
+          {modelAnswers.task2 && originalTestPrompt2 && <ModelAnswerDisplay prompt={originalTestPrompt2} modelAnswer={modelAnswers.task2} />}
         </div>
     );
   };
@@ -168,20 +214,6 @@ const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({ feedback, essay1, essay2,
           />
         </aside>
       </div>
-
-       {onRewrite && onStudyAnother && (
-        <div className="p-6 bg-slate-100 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
-            <p className="font-semibold text-slate-700">What would you like to do next?</p>
-            <div className="flex items-center gap-4">
-            <Button onClick={onRewrite} variant="primary">
-                Rewrite This Test
-            </Button>
-            <Button onClick={onStudyAnother} variant="secondary">
-                Study Another Test
-            </Button>
-            </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,28 +1,106 @@
-import React, { useState } from 'react';
-import { CompletedTest } from '../types';
+import React, { useState, useCallback, useMemo } from 'react';
+import { CompletedTest, IeltsTest, EssayFeedback, DrillCriterion } from '../types';
 import FeedbackPhase from './FeedbackPhase';
 import VocabularyCard from './VocabularyCard';
 import Button from './common/Button';
+import { generateModelAnswer } from '../services/geminiService';
 
 interface FeedbackViewerProps {
   testResult: CompletedTest;
+  originalTest?: IeltsTest;
   onRewrite: (testResult: CompletedTest) => void;
   onExit: () => void;
+  onStartDrill: (criterion: string) => void;
 }
 
 type ActiveTab = 'feedback' | 'vocabulary';
 
-const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ testResult, onRewrite, onExit }) => {
+const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ testResult, originalTest, onRewrite, onExit, onStartDrill }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('feedback');
+  const [modelAnswers, setModelAnswers] = useState<{ task1: string | null, task2: string | null }>({ task1: null, task2: null });
+  const [isModelAnswerLoading, setIsModelAnswerLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const findWeakestCriterion = useCallback((feedback: EssayFeedback): string | null => {
+    const scores: { name: DrillCriterion; score: number }[] = [];
+    const t1 = feedback.detailedScores.task1;
+    const t2 = feedback.detailedScores.task2;
+    
+    scores.push({ name: 'TaskFulfillment', score: t1.TaskAchievement.score });
+    scores.push({ name: 'CoherenceAndCohesion', score: t1.CoherenceAndCohesion.score });
+    scores.push({ name: 'LexicalResource', score: t1.LexicalResource.score });
+    scores.push({ name: 'GrammaticalRangeAndAccuracy', score: t1.GrammaticalRangeAndAccuracy.score });
+    
+    scores.push({ name: 'TaskFulfillment', score: t2.TaskResponse.score });
+    scores.push({ name: 'CoherenceAndCohesion', score: t2.CoherenceAndCohesion.score });
+    scores.push({ name: 'LexicalResource', score: t2.LexicalResource.score });
+    scores.push({ name: 'GrammaticalRangeAndAccuracy', score: t2.GrammaticalRangeAndAccuracy.score });
+
+    if (scores.length === 0) return null;
+
+    const averages: { [key in DrillCriterion]?: { total: number; count: number } } = {};
+    scores.forEach(s => {
+        if (!averages[s.name]) {
+            averages[s.name] = { total: 0, count: 0 };
+        }
+        averages[s.name]!.total += s.score;
+        averages[s.name]!.count++;
+    });
+
+    let weakest: { name: string; score: number } | null = null;
+
+    for (const key in averages) {
+        const avg = averages[key as DrillCriterion]!.total / averages[key as DrillCriterion]!.count;
+        if (!weakest || avg < weakest.score) {
+            weakest = { name: key, score: avg };
+        }
+    }
+    
+    return weakest ? weakest.name : null;
+  }, []);
+
+  const weakestCriterion = useMemo(() => findWeakestCriterion(testResult.feedback), [testResult.feedback, findWeakestCriterion]);
+
+  const handleGenerateModelAnswer = useCallback(async (taskNumber: 1 | 2) => {
+    if (!originalTest) return;
+
+    setIsModelAnswerLoading(true);
+    setError(null);
+    try {
+        const prompt = originalTest.tasks[taskNumber - 1].prompt;
+        const answer = await generateModelAnswer(prompt, taskNumber);
+        setModelAnswers(prev => ({
+            ...prev,
+            [taskNumber === 1 ? 'task1' : 'task2']: answer
+        }));
+    } catch (err: any) {
+        console.error("Failed to generate model answer", err);
+        setError("Could not generate the model answer. Please try again in a moment.");
+    } finally {
+        setIsModelAnswerLoading(false);
+    }
+  }, [originalTest]);
 
   const renderContent = () => {
     if (activeTab === 'feedback') {
       return (
-        <FeedbackPhase 
-          feedback={testResult.feedback}
-          essay1={testResult.essay1}
-          essay2={testResult.essay2}
-        />
+        <>
+            {error && (
+                <div className="mb-4 text-center p-3 bg-red-50 text-red-700 rounded-md border border-red-200 text-sm">
+                    <p>{error}</p>
+                </div>
+            )}
+            <FeedbackPhase 
+              feedback={testResult.feedback}
+              essay1={testResult.essay1}
+              essay2={testResult.essay2}
+              originalTestPrompt1={originalTest?.tasks[0].prompt}
+              originalTestPrompt2={originalTest?.tasks[1].prompt}
+              onGenerateModelAnswer={handleGenerateModelAnswer}
+              modelAnswers={modelAnswers}
+              isModelAnswerLoading={isModelAnswerLoading}
+            />
+        </>
       );
     }
     if (activeTab === 'vocabulary') {
@@ -82,11 +160,13 @@ const FeedbackViewer: React.FC<FeedbackViewerProps> = ({ testResult, onRewrite, 
       <div className="mt-8 p-6 bg-slate-100 border-t border-slate-200 rounded-b-lg flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
         <p className="font-semibold text-slate-700">What would you like to do next?</p>
         <div className="flex items-center gap-4">
-          <Button onClick={() => onRewrite(testResult)} variant="primary">
+          {weakestCriterion && (
+             <Button onClick={() => onStartDrill(weakestCriterion)} variant="primary">
+                Practice Weakest Skill
+            </Button>
+          )}
+          <Button onClick={() => onRewrite(testResult)} variant="secondary">
             Rewrite This Test
-          </Button>
-          <Button onClick={onExit} variant="secondary">
-            Study Another Test
           </Button>
         </div>
       </div>

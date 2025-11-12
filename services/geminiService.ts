@@ -1,6 +1,6 @@
 // FIX: Import GenerateContentResponse to correctly type API call results.
 import { GoogleGenAI, Chat, Type, Part, GenerateContentResponse } from "@google/genai";
-import { IeltsTest, EssayFeedback, Improvement, Task1BandScores, Task2BandScores, VocabularyItem, ChatMessage } from "../types";
+import { IeltsTest, EssayFeedback, Improvement, Task1BandScores, Task2BandScores, VocabularyItem, ChatMessage, DrillCriterion, DrillContent, DrillType } from "../types";
 import { TASK_1_BAND_DESCRIPTORS, TASK_2_BAND_DESCRIPTORS } from "../bandDescriptors";
 import { retrieveContext } from "./ragService";
 
@@ -42,21 +42,21 @@ const withRetry = async <T,>(
  */
 export const validateApiKey = async (apiKey: string): Promise<void> => {
     if (!apiKey) {
-        // This is a fallback; the UI should prevent empty submissions.
         throw new Error("API Key cannot be empty.");
     }
     try {
-        // Use a temporary client for validation
         const ai = new GoogleGenAI({ apiKey });
-        // A simple, low-cost call to verify the key, now with retry logic
         await withRetry(() => ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: 'hello',
-        }), 2, 500); // Retry twice with 500ms initial delay for login validation
-        // If the call succeeds, the promise resolves, indicating a valid key.
+        }), 2, 500);
     } catch (error: any) {
         console.error("API Key validation failed:", error);
         const errorMessage = error.toString();
+        
+        if (errorMessage.includes('Failed to execute') && (errorMessage.includes('Headers') || errorMessage.includes('ISO-8859-1'))) {
+             throw new Error("The API Key contains invalid characters. Please ensure you have copied the key correctly without any extra spaces or symbols.");
+        }
         
         if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
             throw new Error("API rate limit exceeded. Your key seems valid, but you've made too many requests. Please wait a moment and try again.");
@@ -66,7 +66,6 @@ export const validateApiKey = async (apiKey: string): Promise<void> => {
              throw new Error("The provided Gemini API Key is invalid. Please double-check that you have copied it correctly and try again.");
         }
         
-        // This can catch permission errors (403) or other issues.
         throw new Error("Could not verify the API Key. It may be invalid, lack the necessary permissions, or there could be a network issue.");
     }
 };
@@ -111,8 +110,9 @@ const parseVocabularyAndText = (text: string): { text: string; vocabulary: Vocab
 export const startPreparationChat = async (test: IeltsTest, taskNumber: 1 | 2, targetScore: number, language: 'en' | 'vi'): Promise<{ session: Chat, firstMessage: string, vocabulary: VocabularyItem[] }> => {
   const ai = getAiClient();
   const model = 'gemini-2.5-flash';
-  const task = test.tasks[taskNumber - 1];
   const languageName = language === 'vi' ? 'Vietnamese' : 'English';
+  // FIX: Define the `task` variable based on the `taskNumber` to resolve "Cannot find name 'task'" errors.
+  const task = test.tasks[taskNumber - 1];
 
   const commonRules = `
 **LANGUAGE RULE:** You MUST conduct this entire conversation in ${languageName}.
@@ -126,11 +126,20 @@ Second, immediately after that list, provide a separate JSON block with the full
 
   const ragInstruction = `
 **CORE INSTRUCTION:** For every question the student asks, you will be provided with CONTEXT from an expert knowledge base. You MUST base your answer primarily on this provided CONTEXT. If the context is not relevant, you can use your general knowledge but state that the provided information wasn't a perfect match.`;
+  
+  const dataGroundingInstruction = task.keyInformation ? `
+**CRITICAL DATA SOURCE:** You MUST use the following key information as the single source of truth for all statistics in this task. Do not infer or invent data. If the student mentions a number that contradicts this information, gently correct them using this data.
+---
+${task.keyInformation}
+---
+` : '';
+
 
   const task1SystemInstruction = `You are an expert IELTS writing tutor. Your student is aiming for a band score of ${targetScore}. 
 Your goal is to guide them through analyzing Task 1.
 ${commonRules}
 ${ragInstruction}
+${dataGroundingInstruction}
 
 Follow this structured 6-step process. Ask one question at a time. Do not move to the next step until the current one is complete.
 
@@ -356,12 +365,21 @@ export const getEssayFeedback = async (test: IeltsTest, essay1: string, essay2: 
   
   const languageName = language === 'vi' ? 'Vietnamese' : 'English';
   
+  const dataGroundingInstruction = test.tasks[0].keyInformation ? `
+**TASK 1 DATA SOURCE:** Use the following key information as the absolute truth to verify the student's accuracy when assessing Task 1 Task Achievement. Any deviation from this data in the student's essay must be flagged as an error.
+---
+${test.tasks[0].keyInformation}
+---
+` : '';
+  
   const prompt = `You are an expert IELTS examiner evaluating two essays from an IELTS Academic Writing test. The student's target band score is ${targetScore}. Please tailor your feedback to help them bridge the gap between their current writing and their target. Produce a detailed analysis in JSON format.
 
 **OFFICIAL IELTS WRITING BAND DESCRIPTORS (For your reference):**
 ---
 [Band Descriptors for Task 1 and 2 are used for your internal evaluation]
 ---
+
+${dataGroundingInstruction}
 
 **STUDENT'S GOAL & ESSAYS:**
 
@@ -518,4 +536,154 @@ ${essay2}
   }
 
   return processedFeedback;
+};
+
+export const generateModelAnswer = async (prompt: string, taskNumber: 1 | 2): Promise<string> => {
+    const ai = getAiClient();
+    const model = 'gemini-2.5-pro';
+    const wordCount = taskNumber === 1 ? 180 : 280;
+
+    const systemInstruction = `You are an expert IELTS examiner. Your sole task is to write a perfect, band 9 model answer for the provided IELTS Writing Task. The answer must be well-structured, use sophisticated vocabulary and grammar, and fully address the prompt.`;
+
+    const fullPrompt = `For the following IELTS Task ${taskNumber} prompt, write a perfect, band 9 model answer. The essay should be approximately ${wordCount} words. Do not include any titles, headings, or explanations, just the essay text itself.
+
+Prompt: "${prompt}"`;
+
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        model,
+        contents: fullPrompt,
+        config: { systemInstruction, temperature: 0.5 },
+    }));
+
+    return response.text;
+};
+
+export const generateDrillContent = async (criterion: DrillCriterion, topic: string): Promise<DrillContent> => {
+    const ai = getAiClient();
+    const model = 'gemini-2.5-flash';
+
+    const drillTemplates: Record<DrillCriterion, { type: DrillType, description: string, schema: any }> = {
+        LexicalResource: {
+            type: 'VOCABULARY_REPLACEMENT',
+            description: "Generate a `VOCABULARY_REPLACEMENT` drill. Provide a simple 3-sentence paragraph related to the topic. Then, provide a model rewritten version of that same paragraph using Band 8+ level vocabulary and collocations.",
+            schema: {
+                type: Type.OBJECT,
+                properties: {
+                    type: { type: Type.STRING, enum: ['VOCABULARY_REPLACEMENT'] },
+                    title: { type: Type.STRING },
+                    instructions: { type: Type.STRING },
+                    taskContent: { type: Type.STRING, description: "The original, simpler paragraph." },
+                    modelAnswer: { type: Type.STRING, description: "The improved, rewritten paragraph." },
+                },
+                required: ['type', 'title', 'instructions', 'taskContent', 'modelAnswer']
+            }
+        },
+        CoherenceAndCohesion: {
+            type: 'SENTENCE_COMBINING',
+            description: "Generate a `SENTENCE_COMBINING` drill. Provide a list of 4-5 simple, disconnected sentences related to the topic. Then, provide a model answer that combines them into a cohesive, flowing text using appropriate linking words and complex structures.",
+            schema: {
+                 type: Type.OBJECT,
+                 properties: {
+                    type: { type: Type.STRING, enum: ['SENTENCE_COMBINING'] },
+                    title: { type: Type.STRING },
+                    instructions: { type: Type.STRING },
+                    taskContent: { type: Type.STRING, description: "The list of simple, jumbled sentences, separated by newlines." },
+                    modelAnswer: { type: Type.STRING, description: "The combined, cohesive paragraph." },
+                },
+                required: ['type', 'title', 'instructions', 'taskContent', 'modelAnswer']
+            }
+        },
+        TaskFulfillment: {
+            type: 'SUPPORTING_IDEA',
+            description: "Generate a `SUPPORTING_IDEA` multiple-choice drill. Provide a single, clear topic sentence (`taskContent`). Create an array of three distinct `choices`: one correct, specific supporting idea and two incorrect distractors (e.g., one too general, one off-topic). Provide the zero-based `correctAnswerIndex`. Finally, provide a detailed `explanation` of why the correct answer is the best choice and why the others are flawed.",
+            schema: {
+                 type: Type.OBJECT,
+                 properties: {
+                    type: { type: Type.STRING, enum: ['SUPPORTING_IDEA'] },
+                    title: { type: Type.STRING },
+                    instructions: { type: Type.STRING },
+                    taskContent: { type: Type.STRING, description: "The topic sentence for the user to support." },
+                    choices: { type: Type.ARRAY, description: "An array of three string options for the MCQ.", items: { type: Type.STRING } },
+                    correctAnswerIndex: { type: Type.NUMBER, description: "The zero-based index of the correct answer in the choices array." },
+                    explanation: { type: Type.STRING, description: "A detailed explanation of the correct and incorrect answers." }
+                },
+                required: ['type', 'title', 'instructions', 'taskContent', 'choices', 'correctAnswerIndex', 'explanation']
+            }
+        },
+        GrammaticalRangeAndAccuracy: {
+            type: 'GRAMMAR_ERROR_CORRECTION', // Placeholder, real type is determined by AI
+            description: `Generate a short, 5-minute writing drill to help a student improve their 'Grammatical Range and Accuracy'.
+You MUST RANDOMLY select ONE of the following drill types and format your response according to its specific instructions and schema. Ensure the 'type' property in your JSON response matches the chosen drill type.
+
+1.  **'GRAMMAR_ERROR_CORRECTION' (MCQ):**
+    -   Provide a single sentence ('taskContent') with one common grammatical error (e.g., subject-verb agreement, tense error, incorrect preposition).
+    -   Create an array of three string 'choices' describing potential error types, one of which is correct.
+    -   Provide the zero-based 'correctAnswerIndex'.
+    -   Provide the corrected sentence as the 'modelAnswer'.
+    -   Provide a detailed 'explanation' of the error and the correction.
+
+2.  **'CONNECTOR_CHOICE' (MCQ):**
+    -   Provide a sentence or two ('taskContent') with a blank space indicated by '____' where a linking word should be.
+    -   Create an array of three string 'choices' containing possible linking words.
+    -   Provide the zero-based 'correctAnswerIndex'.
+    -   Provide a detailed 'explanation' of why the correct choice is best.
+    -   Do not provide a 'modelAnswer'.
+
+3.  **'PUNCTUATION_CHOICE' (MCQ):**
+    -   Create an array of three string 'choices'. Each choice is a full sentence with different punctuation. One must be correct.
+    -   Provide the zero-based 'correctAnswerIndex'.
+    -   Provide a detailed 'explanation' of the correct punctuation rule.
+    -   Do not provide a 'taskContent' or 'modelAnswer'.
+
+4.  **'SENTENCE_TRANSFORMATION' (Read & Compare):**
+    -   Provide a sentence to transform in 'taskContent' along with an instruction (e.g., "Rewrite this sentence in the passive voice: The researchers conducted the experiment.").
+    -   Provide the correctly transformed sentence as the 'modelAnswer'.
+    -   Provide a detailed 'explanation' of the grammatical transformation.
+
+5.  **'VERB_CONJUGATION' (Text Input):**
+    -   Provide a sentence ('taskContent') with a verb in its base form in parentheses, e.g., "She ______ (go) to the store yesterday."
+    -   Provide the correctly conjugated verb as the 'modelAnswer' (e.g., "went").
+    -   Provide a detailed 'explanation' of the verb tense rule.
+
+6.  **'SENTENCE_REWRITE_ERROR' (Text Input):**
+    -   Provide a single sentence ('taskContent') containing a clear grammatical error.
+    -   Provide the fully corrected sentence as the 'modelAnswer'.
+    -   Provide a detailed 'explanation' of the error and correction.`,
+            schema: {
+                 type: Type.OBJECT,
+                 properties: {
+                    type: { type: Type.STRING, enum: ['GRAMMAR_ERROR_CORRECTION', 'CONNECTOR_CHOICE', 'PUNCTUATION_CHOICE', 'SENTENCE_TRANSFORMATION', 'VERB_CONJUGATION', 'SENTENCE_REWRITE_ERROR'] },
+                    title: { type: Type.STRING },
+                    instructions: { type: Type.STRING },
+                    taskContent: { type: Type.STRING, description: "The core text for the drill. Optional for PUNCTUATION_CHOICE." },
+                    modelAnswer: { type: Type.STRING, description: "The correct answer text. Optional for some MCQ types." },
+                    choices: { type: Type.ARRAY, description: "An array of string options for MCQ drills. Optional.", items: { type: Type.STRING } },
+                    correctAnswerIndex: { type: Type.NUMBER, description: "The zero-based index of the correct answer. Optional for non-MCQ." },
+                    explanation: { type: Type.STRING, description: "A detailed explanation of the answer. Optional for simple compare drills." }
+                },
+                required: ['type', 'title', 'instructions']
+            }
+        }
+    };
+    
+    const selectedDrill = drillTemplates[criterion];
+
+    const prompt = `You are an expert IELTS tutor. Your task is to create a short, 5-minute writing drill to help a student improve a specific skill.
+
+Drill Topic: ${topic}
+Skill to Improve: ${criterion}
+Drill Type and Instructions: ${selectedDrill.description}
+
+You MUST return your response as a single, well-formed JSON object that perfectly matches the provided schema. Do not include any other text or markdown.`;
+
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        model: model,
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: selectedDrill.schema,
+        },
+    }));
+
+    return JSON.parse(response.text);
 };

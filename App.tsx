@@ -4,20 +4,26 @@ import DashboardScreen from './components/DashboardScreen';
 import TestScreen from './components/TestScreen';
 import AdminDashboardScreen from './components/admin/AdminDashboardScreen';
 import FeedbackViewer from './components/FeedbackViewer';
-import { IeltsTest, CompletedTest } from './types';
+import { IeltsTest, CompletedTest, DrillCriterion } from './types';
 import { IELTS_TESTS, TESTS_VERSION } from './constants';
 import Button from './components/common/Button';
 import Logo from './components/icons/Logo';
 import { validateApiKey } from './services/geminiService';
+import DrillScreen from './components/DrillScreen';
+import ProgressHubScreen from './components/ProgressHubScreen';
+import LearnScreen from './components/LearnScreen';
 
 const APP_HISTORY_KEY = 'lexis-ai-test-history';
 const APP_TESTS_KEY = 'lexis-ai-tests';
 const API_KEY_STORAGE_KEY = 'lexis-ai-api-key';
 
+type StudentView = 'dashboard' | 'progress' | 'learn';
+
 const App: React.FC = () => {
   const [userRole, setUserRole] = useState<'student' | 'admin' | null>(null);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [currentView, setCurrentView] = useState<StudentView>('dashboard');
 
   const [tests, setTests] = useState<IeltsTest[]>(() => {
     try {
@@ -59,6 +65,7 @@ const App: React.FC = () => {
   const [selectedTest, setSelectedTest] = useState<IeltsTest | null>(null);
   const [viewingCompletedTest, setViewingCompletedTest] = useState<CompletedTest | null>(null);
   const [completedTestForRewrite, setCompletedTestForRewrite] = useState<CompletedTest | null>(null);
+  const [activeDrill, setActiveDrill] = useState<{criterion: DrillCriterion; topic: string} | null>(null);
 
 
   const [completedTests, setCompletedTests] = useState<CompletedTest[]>(() => {
@@ -116,6 +123,8 @@ const App: React.FC = () => {
     setSelectedTest(null);
     setViewingCompletedTest(null);
     setCompletedTestForRewrite(null);
+    setActiveDrill(null);
+    setCurrentView('dashboard');
     sessionStorage.removeItem(API_KEY_STORAGE_KEY);
   }, []);
 
@@ -133,6 +142,8 @@ const App: React.FC = () => {
     setSelectedTest(null);
     setViewingCompletedTest(null);
     setCompletedTestForRewrite(null); // Ensure rewrite state is cleared
+    setActiveDrill(null);
+    setCurrentView('dashboard'); // Always return to the main dashboard
   }, []);
 
   const handleCompleteTest = useCallback((result: Omit<CompletedTest, 'id' | 'completionDate'>) => {
@@ -154,8 +165,28 @@ const App: React.FC = () => {
       setViewingCompletedTest(null);
     } else {
       console.error("Could not find original test to rewrite.");
-      // In a real app, you might want to show an error to the user here.
     }
+  }, [tests]);
+
+  const handleStartDrill = useCallback((criterion: DrillCriterion) => {
+    const latestTest = completedTests.slice().reverse()[0];
+    if (latestTest) {
+        const originalTest = tests.find(t => t.id === latestTest.testId);
+        const topic = originalTest?.tags?.find(tag => !tag.toLowerCase().includes('graph') && !tag.toLowerCase().includes('chart') && !tag.toLowerCase().includes('diagram') && !tag.toLowerCase().includes('table')) || originalTest?.tags?.[1] || 'general topics';
+        setActiveDrill({ criterion, topic });
+    }
+  }, [completedTests, tests]);
+  
+  const handleStartFreestyleDrill = useCallback((criterion: DrillCriterion) => {
+    // 1. Pick a random test
+    const randomTest = tests[Math.floor(Math.random() * tests.length)];
+    // 2. Pick a random, valid topic from its tags (excluding chart types)
+    const validTopics = randomTest.tags?.filter(tag => 
+        !['graph', 'chart', 'diagram', 'table'].some(chartType => tag.toLowerCase().includes(chartType))
+    ) || [];
+    const topic = validTopics[Math.floor(Math.random() * validTopics.length)] || 'general topics'; // Fallback
+    // 3. Set the active drill
+    setActiveDrill({ criterion, topic });
   }, [tests]);
 
 
@@ -181,8 +212,22 @@ const App: React.FC = () => {
       return <AdminDashboardScreen tests={tests} onAddNewTest={handleAddNewTest} onUpdateTest={handleUpdateTest} />;
     }
     if (userRole === 'student') {
+      if (activeDrill) {
+        return <DrillScreen 
+            criterion={activeDrill.criterion} 
+            topic={activeDrill.topic}
+            onExit={handleExit}
+        />;
+      }
       if (viewingCompletedTest) {
-        return <FeedbackViewer testResult={viewingCompletedTest} onRewrite={handleRewriteTest} onExit={handleExit} />;
+        const originalTest = tests.find(t => t.id === viewingCompletedTest.testId);
+        return <FeedbackViewer 
+            testResult={viewingCompletedTest} 
+            originalTest={originalTest}
+            onRewrite={handleRewriteTest} 
+            onExit={handleExit} 
+            onStartDrill={handleStartDrill}
+        />;
       }
       if (selectedTest) {
         return <TestScreen 
@@ -192,12 +237,22 @@ const App: React.FC = () => {
           completedTestForRewrite={completedTestForRewrite} 
         />;
       }
-      return <DashboardScreen tests={tests} onSelectTest={handleSelectTest} completedTests={completedTests} onViewCompletedTest={handleViewCompletedTest} />;
+       if (currentView === 'learn') {
+          return <LearnScreen onStartFreestyleDrill={handleStartFreestyleDrill} />;
+      }
+      if (currentView === 'progress') {
+          return <ProgressHubScreen 
+            completedTests={completedTests} 
+            onViewCompletedTest={handleViewCompletedTest}
+            onStartDrill={handleStartDrill}
+          />
+      }
+      return <DashboardScreen tests={tests} onSelectTest={handleSelectTest} />;
     }
     return null;
   };
   
-  const isWorkspaceView = userRole === 'student' && (selectedTest || viewingCompletedTest);
+  const isWorkspaceView = userRole === 'student' && (selectedTest || viewingCompletedTest || activeDrill);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans antialiased flex flex-col">
@@ -209,10 +264,22 @@ const App: React.FC = () => {
           </h1>
           {userRole && (
             <div className="flex items-center gap-4">
-              {isWorkspaceView && (
+              {isWorkspaceView ? (
                 <Button onClick={handleExit} variant="secondary">
                   Back to Dashboard
                 </Button>
+              ) : (
+                <nav className="flex items-center p-0.5 bg-slate-200/80 rounded-lg space-x-1">
+                    <button onClick={() => setCurrentView('dashboard')} className={`px-3 py-1 text-sm font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-orange-500 transition-colors ${currentView === 'dashboard' ? 'bg-white text-orange-600 shadow' : 'bg-transparent text-slate-600 hover:bg-white/50'}`}>
+                        Dashboard
+                    </button>
+                     <button onClick={() => setCurrentView('learn')} className={`px-3 py-1 text-sm font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-orange-500 transition-colors ${currentView === 'learn' ? 'bg-white text-orange-600 shadow' : 'bg-transparent text-slate-600 hover:bg-white/50'}`}>
+                        Learn
+                    </button>
+                    <button onClick={() => setCurrentView('progress')} className={`px-3 py-1 text-sm font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-orange-500 transition-colors ${currentView === 'progress' ? 'bg-white text-orange-600 shadow' : 'bg-transparent text-slate-600 hover:bg-white/50'}`}>
+                        My Progress
+                    </button>
+                </nav>
               )}
                <Button onClick={handleLogout} variant="primary">
                   Logout
@@ -226,9 +293,6 @@ const App: React.FC = () => {
           {renderContent()}
         </div>
       </main>
-      <footer className="w-full py-6 text-center text-sm text-slate-400 border-t border-slate-200">
-        © 2025 John Vũ. All rights reserved.
-      </footer>
     </div>
   );
 };

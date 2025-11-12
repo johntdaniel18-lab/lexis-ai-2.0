@@ -1,12 +1,14 @@
 export interface TestTask {
   prompt: string;
   imageUrl?: string;
+  keyInformation?: string;
 }
 
 export interface IeltsTest {
   id: number;
   title: string;
   tasks: [TestTask, TestTask];
+  tags?: string[];
 }
 
 export interface ChatMessage {
@@ -89,4 +91,30 @@ export enum TestPhase {
   TIME_SELECTION = 'TIME_SELECTION',
   WRITING = 'WRITING',
   FEEDBACK = 'FEEDBACK',
+}
+
+export type DrillCriterion = 'TaskFulfillment' | 'CoherenceAndCohesion' | 'LexicalResource' | 'GrammaticalRangeAndAccuracy';
+
+export type DrillType = 
+  'VOCABULARY_REPLACEMENT' | 
+  'SENTENCE_COMBINING' | 
+  'GRAMMAR_ERROR_CORRECTION' | 
+  'SUPPORTING_IDEA' |
+  'CONNECTOR_CHOICE' |
+  'SENTENCE_TRANSFORMATION' |
+  'VERB_CONJUGATION' |
+  'PUNCTUATION_CHOICE' |
+  'SENTENCE_REWRITE_ERROR';
+
+export interface DrillContent {
+  type: DrillType;
+  title: string;
+  instructions: string;
+  taskContent: string;
+  // For standard drills & input drills
+  modelAnswer?: string;
+  // For MCQ drills
+  choices?: string[];
+  correctAnswerIndex?: number;
+  explanation?: string;
 }

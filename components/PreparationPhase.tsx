@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { IeltsTest, ChatMessage, VocabularyItem } from '../types';
+import { IeltsTest, ChatMessage, VocabularyItem, TestMode } from '../types';
 import Spinner from './common/Spinner';
 import Button from './common/Button';
 import RobotIcon from './icons/RobotIcon';
@@ -11,7 +11,8 @@ interface PreparationPhaseProps {
   test: IeltsTest;
   targetScore: number;
   onComplete: () => void;
-  mode: 'interactive' | 'review';
+  viewMode: 'interactive' | 'review';
+  testMode: TestMode;
   language: 'en' | 'vi';
   messagesTask1: ChatMessage[];
   messagesTask2: ChatMessage[];
@@ -30,7 +31,8 @@ type ActiveTab = 'task1' | 'task2' | 'vocabulary' | 'outlines';
 const PreparationPhase: React.FC<PreparationPhaseProps> = ({ 
   test, 
   onComplete, 
-  mode,
+  viewMode,
+  testMode,
   language,
   messagesTask1,
   messagesTask2,
@@ -43,16 +45,17 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
   outlines,
   activeWritingTask,
 }) => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('task1');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => testMode === 'TASK_2' ? 'task2' : 'task1');
   const [userInput, setUserInput] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [unseenVocabCount, setUnseenVocabCount] = useState(0);
   const vocabCountRef = useRef(vocabularyTask1.length + vocabularyTask2.length);
   const [showActionButtons, setShowActionButtons] = useState(false);
-  const [lastViewedTaskTab, setLastViewedTaskTab] = useState<'task1' | 'task2'>('task1');
+  const [lastViewedTaskTab, setLastViewedTaskTab] = useState<'task1' | 'task2'>(() => testMode === 'TASK_2' ? 'task2' : 'task1');
   
-  const isInteractive = mode === 'interactive';
-  const currentTaskContext = mode === 'review' ? activeWritingTask : lastViewedTaskTab;
+  const isInteractive = viewMode === 'interactive';
+  const currentTaskContext = viewMode === 'review' ? activeWritingTask : lastViewedTaskTab;
+  const isSingleTaskMode = testMode === 'TASK_1' || testMode === 'TASK_2';
 
   const actionButtonTranslations = {
     en: {
@@ -83,16 +86,13 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
     }
   }, [activeTab]);
   
-  // Effect to sync review tab with writing task
   useEffect(() => {
-    if (mode === 'review' && activeWritingTask) {
-        // Only switch if the user is looking at a task prep tab.
-        // This allows them to stay on Vocab or Outlines if they click it.
+    if (viewMode === 'review' && activeWritingTask) {
         if ((activeTab === 'task1' || activeTab === 'task2') && activeTab !== activeWritingTask) {
             setActiveTab(activeWritingTask);
         }
     }
-  }, [activeWritingTask, activeTab, mode]);
+  }, [activeWritingTask, activeTab, viewMode]);
 
 
   useEffect(() => {
@@ -113,24 +113,25 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
     if (activeTab === 'task1' || activeTab === 'task2') {
         scrollToBottom();
         const activeMessages = activeTab === 'task1' ? messagesTask1 : messagesTask2;
-        // Show buttons only in interactive mode, when not loading, and after an AI message.
         if (isInteractive && !isLoading && activeMessages.length > 0 && activeMessages[activeMessages.length - 1].sender === 'ai') {
             setShowActionButtons(true);
         } else {
-            // Hide buttons if loading, if user sent last message, or if in review mode
             setShowActionButtons(false);
         }
     } else {
-        // Hide buttons on vocab tab
         setShowActionButtons(false);
     }
   }, [messagesTask1, messagesTask2, activeTab, isLoading, isInteractive]);
   
   useEffect(() => {
     if (isInteractive) {
-      onInitializeTask(1);
+      if (testMode === 'TASK_1' || testMode === 'MOCK_TEST') {
+        onInitializeTask(1);
+      } else if (testMode === 'TASK_2') {
+        onInitializeTask(2);
+      }
     }
-  }, [onInitializeTask, isInteractive]);
+  }, [onInitializeTask, isInteractive, testMode]);
 
   const handleTabChange = (tab: ActiveTab) => {
     if (tab === 'vocabulary') {
@@ -177,7 +178,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
     return (
       <div className={`flex flex-col h-full ${isInteractive ? '' : 'bg-slate-50'}`}>
         <div className="flex-grow p-6 overflow-y-auto bg-slate-50 space-y-4">
-          {!hasMessages && mode === 'review' && (
+          {!hasMessages && viewMode === 'review' && (
              <div className="flex h-full items-center justify-center">
               <p className="text-center text-slate-400">Preparation for this task was skipped.</p>
             </div>
@@ -202,7 +203,6 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
           <div ref={chatEndRef} />
         </div>
         
-        {/* UNIFIED SUGGESTION BAR */}
         {isInteractive && showActionButtons && (
             <div className="p-3 border-t border-slate-200 bg-white/80 backdrop-blur-sm">
                 <div className="flex items-center justify-center flex-wrap gap-2">
@@ -251,7 +251,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
                 }
               }}
               placeholder={isLoading ? "AI is thinking..." : "Type your response..."}
-              disabled={isLoading}
+              disabled={isLoading || isSingleTaskMode && activeTab.replace('task', '') !== testMode.replace('TASK_', '')}
               className="flex-grow px-4 py-2 border border-slate-300 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500 bg-slate-100 text-slate-900"
             />
             <Button type="submit" disabled={isLoading || !userInput.trim()}>Send</Button>
@@ -277,7 +277,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
       );
     }
 
-    if (mode === 'review' && activeVocabulary.length === 0) {
+    if (viewMode === 'review' && activeVocabulary.length === 0) {
         return (
             <div className="flex-grow p-6 overflow-y-auto bg-slate-50 flex items-center justify-center h-full">
                 <div className="text-center text-slate-400">
@@ -348,16 +348,15 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-slate-200 flex flex-col" style={isInteractive ? { height: '80vh' } : { height: 'calc(100vh - 12rem)' }}>
       <div className="p-6 border-b border-slate-200 flex-shrink-0">
-        <h3 className="text-xl font-semibold text-slate-900">{isInteractive ? 'Step 1: AI-Guided Preparation' : 'Preparation Review'}</h3>
-        <p className="mt-1 text-slate-500">{isInteractive ? 'Review tasks, chat with your AI tutor, and study suggested vocabulary.' : 'Review your AI chat, vocabulary, and outlines.'}</p>
+        <h3 className="text-xl font-semibold text-slate-900">{isInteractive ? 'AI-Guided Preparation' : 'Preparation Review'}</h3>
+        <p className="mt-1 text-slate-500">{isInteractive ? 'Chat with your AI tutor and study suggested vocabulary.' : 'Review your AI chat, vocabulary, and outlines.'}</p>
       </div>
       
       <div className="flex flex-row flex-grow overflow-auto">
-        {/* Task Details Panel (Interactive Mode Only) */}
-        {mode === 'interactive' && (
+        {isInteractive && (
           <aside className="w-[65%] p-6 border-r border-slate-200 bg-slate-50 overflow-y-auto">
             <div className="space-y-6">
-               {(activeTab === 'task1' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task1')) && (
+               {(testMode === 'TASK_1' || testMode === 'MOCK_TEST') && (
                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                   <h5 className="font-bold text-slate-800 mb-2 text-lg">Task 1</h5>
                   {test.tasks[0].imageUrl && (
@@ -368,7 +367,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
                   <p className="text-base text-slate-600 leading-relaxed">{test.tasks[0].prompt}</p>
                 </div>
               )}
-              {(activeTab === 'task2' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task2')) && (
+              {(testMode === 'TASK_2' || testMode === 'MOCK_TEST') && (
                 <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                   <h5 className="font-bold text-slate-800 mb-2 text-lg">Task 2</h5>
                   <p className="text-base text-slate-600 leading-relaxed">{test.tasks[1].prompt}</p>
@@ -378,21 +377,23 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
           </aside>
         )}
 
-        {/* Right Panel (Chat/Vocab/Outlines) */}
-        <div className={`flex flex-col bg-white min-w-0 ${mode === 'interactive' ? 'w-[35%]' : 'w-full'}`}>
-          {/* Sticky Tab Bar */}
+        <div className={`flex flex-col bg-white min-w-0 ${isInteractive ? 'w-[35%]' : 'w-full'}`}>
           <div className="sticky top-0 z-10 p-2 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
             <nav className="flex items-center gap-2">
-              <button 
-                onClick={() => handleTabChange('task1')} 
-                className={`flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'task1' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                Task 1 Prep
-              </button>
-              <button 
-                onClick={() => handleTabChange('task2')} 
-                className={`flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'task2' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                Task 2 Prep
-              </button>
+              {(testMode === 'TASK_1' || testMode === 'MOCK_TEST') && (
+                <button 
+                  onClick={() => handleTabChange('task1')} 
+                  className={`flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'task1' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  Task 1 Prep
+                </button>
+              )}
+               {(testMode === 'TASK_2' || testMode === 'MOCK_TEST') && (
+                <button 
+                  onClick={() => handleTabChange('task2')} 
+                  className={`flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'task2' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  Task 2 Prep
+                </button>
+               )}
               <button 
                 onClick={() => handleTabChange('vocabulary')} 
                 className={`relative flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'vocabulary' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
@@ -403,7 +404,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
                     </span>
                   )}
               </button>
-               {mode === 'review' && (
+               {viewMode === 'review' && (
                  <button 
                     onClick={() => handleTabChange('outlines')} 
                     className={`relative flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'outlines' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
@@ -413,12 +414,10 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
             </nav>
           </div>
           
-          {/* Tab Content */}
           {activeTab === 'task1' && renderChatInterface()}
           {activeTab === 'task2' && renderChatInterface()}
           {activeTab === 'vocabulary' && renderVocabularyInterface()}
-          {activeTab === 'outlines' && mode === 'review' && renderOutlinesInterface()}
-
+          {activeTab === 'outlines' && viewMode === 'review' && renderOutlinesInterface()}
         </div>
       </div>
       

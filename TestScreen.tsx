@@ -102,6 +102,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
     try {
       const result = await getEssayFeedback(test, essay1, essay2, targetScore, language);
       setFeedback(result);
+      // FIX: Add missing properties `chatHistoryTask1`, `chatHistoryTask2`, and `testMode` to satisfy the CompletedTest type.
       onSaveTestResult({
         testId: test.id,
         testTitle: test.title,
@@ -110,6 +111,9 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
         essay2,
         feedback: result,
         vocabulary: combinedVocabulary,
+        chatHistoryTask1: messagesTask1,
+        chatHistoryTask2: messagesTask2,
+        testMode: 'MOCK_TEST', // Hardcoded as this component doesn't support single-task modes
       });
       setPhase(TestPhase.FEEDBACK); 
     } catch (err: any) {
@@ -117,7 +121,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onSaveTestResult, language]);
+  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onSaveTestResult, language, messagesTask1, messagesTask2]);
   
     // --- Chat logic moved from PreparationPhase ---
   const handleInitializeTask = useCallback(async (taskNumber: 1 | 2) => {

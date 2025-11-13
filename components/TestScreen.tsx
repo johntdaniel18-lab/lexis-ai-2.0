@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { IeltsTest, TestPhase, EssayFeedback, CompletedTest, VocabularyItem, ChatMessage } from '../types';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { IeltsTest, TestPhase, CompletedTest, VocabularyItem, ChatMessage, TestMode } from '../types';
 import TargetScoreSelectionPhase from './TargetScoreSelectionPhase';
 import PreparationPhase from './PreparationPhase';
 import WritingPhase from './WritingPhase';
@@ -11,47 +11,65 @@ import { Chat } from '@google/genai';
 
 interface TestScreenProps {
   test: IeltsTest;
+  testMode: TestMode;
   onExit: () => void;
   onCompleteTest: (result: Omit<CompletedTest, 'id' | 'completionDate'>) => void;
   completedTestForRewrite?: CompletedTest | null;
 }
 
-const TestScreen: React.FC<TestScreenProps> = ({ test, onExit, onCompleteTest, completedTestForRewrite }) => {
-  const [phase, setPhase] = useState<TestPhase>(() => 
-    completedTestForRewrite ? TestPhase.OUTLINE_REVIEW : TestPhase.TARGET_SCORE_SELECTION
-  );
+const TestScreen: React.FC<TestScreenProps> = ({ test, testMode, onExit, onCompleteTest, completedTestForRewrite }) => {
+  const isMockTest = testMode === 'MOCK_TEST';
+  
+  const [phase, setPhase] = useState<TestPhase>(() => {
+    if (completedTestForRewrite) {
+      return isMockTest ? TestPhase.TIME_SELECTION : TestPhase.OUTLINE_REVIEW;
+    }
+    return isMockTest ? TestPhase.TIME_SELECTION : TestPhase.TARGET_SCORE_SELECTION;
+  });
+
   const [targetScore, setTargetScore] = useState<number | null>(() => 
-    completedTestForRewrite ? completedTestForRewrite.targetScore : null
+    completedTestForRewrite ? completedTestForRewrite.targetScore : (isMockTest ? 7.0 : null)
   );
+  
   const [language, setLanguage] = useState<'en' | 'vi'>(() =>
-    completedTestForRewrite ? (['en', 'vi'].includes('en') ? 'en' : 'en') : 'en' // Simplified logic, assumes 'en' for now
+    completedTestForRewrite ? (['en', 'vi'].includes('en') ? 'en' : 'en') : 'en'
   );
   const [writingDuration, setWritingDuration] = useState<number | null>(null);
 
   const [messagesTask1, setMessagesTask1] = useState<ChatMessage[]>(() =>
-    completedTestForRewrite ? completedTestForRewrite.chatHistoryTask1 : []
+    completedTestForRewrite && !isMockTest ? completedTestForRewrite.chatHistoryTask1 : []
   );
   const [messagesTask2, setMessagesTask2] = useState<ChatMessage[]>(() =>
-    completedTestForRewrite ? completedTestForRewrite.chatHistoryTask2 : []
+    completedTestForRewrite && !isMockTest ? completedTestForRewrite.chatHistoryTask2 : []
   );
   const [sessionTask1, setSessionTask1] = useState<Chat | null>(null);
   const [sessionTask2, setSessionTask2] = useState<Chat | null>(null);
   
-  const [vocabularyTask1, setVocabularyTask1] = useState<VocabularyItem[]>(() =>
-    completedTestForRewrite ? completedTestForRewrite.vocabulary : []
-  );
+  const [vocabularyTask1, setVocabularyTask1] = useState<VocabularyItem[]>([]);
   const [vocabularyTask2, setVocabularyTask2] = useState<VocabularyItem[]>([]);
   
+  useEffect(() => {
+    if (completedTestForRewrite && !isMockTest && completedTestForRewrite.vocabulary) {
+        // Simple heuristic to split vocabulary for rewrites. Not perfect.
+        const vocab = completedTestForRewrite.vocabulary;
+        const t1Vocab = vocab.filter(v => test.tasks[0].prompt.toLowerCase().includes(v.word.toLowerCase()));
+        const t2Vocab = vocab.filter(v => test.tasks[1].prompt.toLowerCase().includes(v.word.toLowerCase()));
+        setVocabularyTask1(t1Vocab);
+        setVocabularyTask2(t2Vocab);
+    }
+  }, [completedTestForRewrite, isMockTest, test.tasks]);
+
+
   const [isPrepLoading, setIsPrepLoading] = useState(false);
   const [prepError, setPrepError] = useState<string | null>(null);
-  const isTask2Initialized = useRef(false);
+  const isTaskInitialized = useRef<{[key: number]: boolean}>({});
   
   const [outlines, setOutlines] = useState<{ task1Outline?: string; task2Outline?: string } | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const [activeWritingTask, setActiveWritingTask] = useState<'task1' | 'task2'>('task1');
+  const [activeWritingTask, setActiveWritingTask] = useState<'task1' | 'task2'>(testMode === 'TASK_2' ? 'task2' : 'task1');
 
   const handleGoalsSet = useCallback((goals: { score: number, language: 'en' | 'vi' }) => {
     setTargetScore(goals.score);
@@ -108,7 +126,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onExit, onCompleteTest, c
     try {
       const result = await getEssayFeedback(test, essay1, essay2, targetScore, language);
       
-      const testResultPayload = {
+      const testResultPayload: Omit<CompletedTest, 'id' | 'completionDate'> = {
         testId: test.id,
         testTitle: completedTestForRewrite ? `${test.title} (Rewrite)` : test.title,
         targetScore,
@@ -118,6 +136,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onExit, onCompleteTest, c
         vocabulary: combinedVocabulary,
         chatHistoryTask1: messagesTask1,
         chatHistoryTask2: messagesTask2,
+        testMode: testMode,
       };
 
       onCompleteTest(testResultPayload);
@@ -125,13 +144,11 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onExit, onCompleteTest, c
       handleError(err, setError);
       setIsLoading(false); // Only stop loading on error, as success unmounts the component
     }
-  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onCompleteTest, language, completedTestForRewrite, messagesTask1, messagesTask2]);
+  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onCompleteTest, language, completedTestForRewrite, messagesTask1, messagesTask2, testMode]);
   
   const handleInitializeTask = useCallback(async (taskNumber: 1 | 2) => {
-    if (targetScore === null) return;
-    if (taskNumber === 2 && isTask2Initialized.current) return;
-    if (taskNumber === 1 && messagesTask1.length > 0) return; 
-    if (taskNumber === 2) isTask2Initialized.current = true;
+    if (targetScore === null || isTaskInitialized.current[taskNumber]) return;
+    isTaskInitialized.current[taskNumber] = true;
     
     setPrepError(null);
     setIsPrepLoading(true);
@@ -152,7 +169,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onExit, onCompleteTest, c
     } finally {
       setIsPrepLoading(false);
     }
-  }, [test, targetScore, messagesTask1.length, language]);
+  }, [test, targetScore, language]);
 
   const handleSendMessage = useCallback(async (message: string, taskNumber: 1 | 2) => {
     const session = taskNumber === 1 ? sessionTask1 : sessionTask2;
@@ -206,13 +223,15 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onExit, onCompleteTest, c
     switch (phase) {
       case TestPhase.TARGET_SCORE_SELECTION:
         return <TargetScoreSelectionPhase onGoalsSet={handleGoalsSet} />;
+      
       case TestPhase.PREPARATION:
         if (targetScore === null) return <div className="text-center">Error: Target score not set. Please go back and select a test again.</div>;
         return <PreparationPhase 
             test={test} 
             targetScore={targetScore} 
             onComplete={handlePreparationComplete}
-            mode="interactive"
+            viewMode="interactive"
+            testMode={testMode}
             language={language}
             messagesTask1={messagesTask1}
             messagesTask2={messagesTask2}
@@ -223,6 +242,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onExit, onCompleteTest, c
             onInitializeTask={handleInitializeTask}
             onSendMessage={handleSendMessage}
         />;
+      
       case TestPhase.OUTLINE_REVIEW:
         if (targetScore === null) return <div className="text-center">Error: Target score not set. Please go back and select a test again.</div>;
         return <OutlineReviewPhase 
@@ -233,40 +253,48 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onExit, onCompleteTest, c
           language={language}
           onStartWriting={handleProceedToTimeSelection}
           onOutlinesGenerated={handleOutlinesGenerated}
+          testMode={testMode}
         />;
+      
       case TestPhase.TIME_SELECTION:
-          return <TimeSelectionPhase onConfirm={handleTimeSelected} />;
+          // FIX: Pass testMode to TimeSelectionPhase to enable context-specific time recommendations.
+          return <TimeSelectionPhase onConfirm={handleTimeSelected} defaultDuration={isMockTest ? 60 : (testMode === 'TASK_1' ? 20 : 40)} testMode={testMode} />;
+      
       case TestPhase.WRITING:
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            <div className="lg:col-span-7 xl:col-span-7 h-auto lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto rounded-lg">
+          <div className={`grid grid-cols-1 ${!isMockTest ? 'lg:grid-cols-12' : ''} gap-8 items-start`}>
+            <div className={`${!isMockTest ? 'lg:col-span-7 xl:col-span-7' : 'col-span-1'} h-auto lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto rounded-lg`}>
               <WritingPhase 
                 test={test} 
                 onSubmit={handleSubmission} 
-                durationInSeconds={writingDuration ?? 3600}
+                durationInSeconds={writingDuration ?? (isMockTest ? 3600 : (testMode === 'TASK_1' ? 1200 : 2400))}
                 activeTask={activeWritingTask}
                 onTaskChange={setActiveWritingTask}
+                testMode={testMode}
               />
             </div>
-            <aside className="lg:col-span-5 xl:col-span-5">
-              <PreparationPhase
-                  test={test}
-                  targetScore={targetScore!}
-                  onComplete={() => {}} 
-                  mode="review"
-                  language={language}
-                  messagesTask1={messagesTask1}
-                  messagesTask2={messagesTask2}
-                  vocabularyTask1={vocabularyTask1}
-                  vocabularyTask2={vocabularyTask2}
-                  isLoading={false} 
-                  error={null} 
-                  onInitializeTask={() => {}} 
-                  onSendMessage={() => {}} 
-                  outlines={outlines}
-                  activeWritingTask={activeWritingTask}
-              />
-            </aside>
+            {!isMockTest && (
+              <aside className="lg:col-span-5 xl:col-span-5">
+                <PreparationPhase
+                    test={test}
+                    targetScore={targetScore!}
+                    onComplete={() => {}} 
+                    viewMode="review"
+                    testMode={testMode}
+                    language={language}
+                    messagesTask1={messagesTask1}
+                    messagesTask2={messagesTask2}
+                    vocabularyTask1={vocabularyTask1}
+                    vocabularyTask2={vocabularyTask2}
+                    isLoading={false} 
+                    error={null} 
+                    onInitializeTask={() => {}} 
+                    onSendMessage={() => {}} 
+                    outlines={outlines}
+                    activeWritingTask={activeWritingTask}
+                />
+              </aside>
+            )}
           </div>
         )
       default:

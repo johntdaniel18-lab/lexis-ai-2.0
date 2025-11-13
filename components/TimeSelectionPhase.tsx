@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import Button from './common/Button';
+// FIX: Import TestMode to use as a prop type.
+import { TestMode } from '../types';
 
 interface TimeSelectionPhaseProps {
   onConfirm: (durationInSeconds: number) => void;
+  defaultDuration?: number;
+  // FIX: Add optional testMode prop to display context-specific time recommendations.
+  testMode?: TestMode;
 }
 
-const TimeSelectionPhase: React.FC<TimeSelectionPhaseProps> = ({ onConfirm }) => {
-  const [durationInMinutes, setDurationInMinutes] = useState(60);
+const TimeSelectionPhase: React.FC<TimeSelectionPhaseProps> = ({ onConfirm, defaultDuration = 60, testMode }) => {
+  const [durationInMinutes, setDurationInMinutes] = useState(defaultDuration);
 
   const handleAdjustTime = (amount: number) => {
     setDurationInMinutes(prev => {
@@ -26,7 +31,7 @@ const TimeSelectionPhase: React.FC<TimeSelectionPhaseProps> = ({ onConfirm }) =>
       <div className="p-8 text-center border-b border-slate-200">
         <h3 className="text-2xl font-bold text-slate-900">Set Your Writing Time</h3>
         <p className="mt-2 text-slate-500">
-          Choose your desired practice duration. 60 minutes is the official exam time.
+          Choose your desired practice duration. 60 minutes is the official exam time for a full test.
         </p>
       </div>
 
@@ -44,8 +49,14 @@ const TimeSelectionPhase: React.FC<TimeSelectionPhaseProps> = ({ onConfirm }) =>
             <div className="text-6xl font-extrabold text-orange-600 tabular-nums">
               {formatTime(durationInMinutes)}
             </div>
-            {durationInMinutes === 60 && (
+            {durationInMinutes === 60 && testMode === 'MOCK_TEST' && (
                 <p className="text-sm font-semibold text-emerald-600 mt-1">(Official Exam Time)</p>
+            )}
+             {durationInMinutes === 20 && testMode === 'TASK_1' && (
+                <p className="text-sm font-semibold text-emerald-600 mt-1">(Recommended Time)</p>
+            )}
+             {durationInMinutes === 40 && testMode === 'TASK_2' && (
+                <p className="text-sm font-semibold text-emerald-600 mt-1">(Recommended Time)</p>
             )}
           </div>
           <Button 

@@ -197,20 +197,22 @@ Prompt: ${task.prompt}
 Please begin the guided preparation for this task.`;
 
   const imageUrl = task.imageUrl;
-  let messagePayload: string | (string | Part)[] = textPrompt;
+  let messagePayload: string | Part[] = textPrompt;
 
   if (imageUrl) {
     const match = imageUrl.match(/^data:(image\/.*?);base64,(.*)$/);
     if (match) {
         const mimeType = match[1];
         const data = match[2];
-        const imagePart = {
+        const imagePart: Part = {
             inlineData: {
                 mimeType,
                 data,
             }
         };
-        messagePayload = [imagePart, textPrompt];
+        // FIX: The text part of a multipart message must be a Part object, not a raw string.
+        const textPart: Part = { text: textPrompt };
+        messagePayload = [imagePart, textPart];
     }
   }
 
@@ -348,7 +350,6 @@ export const getEssayOutlines = async (
 
 
 export const getEssayFeedback = async (test: IeltsTest, essay1: string, essay2: string, targetScore: number, language: 'en' | 'vi'): Promise<EssayFeedback> => {
-  // Caching layer to ensure identical inputs get identical outputs
   const cacheKey = `feedback-cache::${essay1}::${essay2}::${targetScore}::${language}`;
   try {
     const cachedFeedback = sessionStorage.getItem(cacheKey);
@@ -371,8 +372,11 @@ export const getEssayFeedback = async (test: IeltsTest, essay1: string, essay2: 
 ${test.tasks[0].keyInformation}
 ---
 ` : '';
+
+  const essay1Provided = essay1.trim().length >= 20;
+  const essay2Provided = essay2.trim().length >= 20;
   
-  const prompt = `You are an expert IELTS examiner evaluating two essays from an IELTS Academic Writing test. The student's target band score is ${targetScore}. Please tailor your feedback to help them bridge the gap between their current writing and their target. Produce a detailed analysis in JSON format.
+  const prompt = `You are an expert IELTS examiner evaluating writing from an IELTS Academic Writing test. The student's target band score is ${targetScore}. Produce a detailed analysis in JSON format.
 
 **OFFICIAL IELTS WRITING BAND DESCRIPTORS (For your reference):**
 ---
@@ -400,31 +404,47 @@ ${essay2}
 ---
 
 
-**YOUR EVALUATION INSTRUCTIONS (MUST be followed exactly):**
-**CRITICAL SCORING RULE:** Your evaluation MUST be a direct and rigorous application of the provided IELTS Band Descriptors. Avoid holistic impressions; base your score purely on the evidence you have documented in the feedback text for each criterion. Your final score must be a logical consequence of this step-by-step analysis.
+**INPUT SCENARIO & SCORING RULES:**
+${essay1Provided && essay2Provided ? `
+- **SCENARIO:** Full Mock Test (Both essays provided).
+- **EVALUATION:** Evaluate BOTH essays rigorously against the band descriptors.
+- **OVERALL SCORE:** The 'overallScore' MUST be a weighted average: (Task 1 Score * 1/3) + (Task 2 Score * 2/3), rounded to the nearest 0.5.
+` : ''}
+${essay1Provided && !essay2Provided ? `
+- **SCENARIO:** Task 1 Practice Only ('Task 2 Essay' is empty).
+- **EVALUATION:** Evaluate ONLY the Task 1 essay.
+- **TASK 2 SCORES:** For Task 2, you MUST assign a score of 0.0 for ALL criteria (TaskResponse, CoherenceAndCohesion, LexicalResource, GrammaticalRangeAndAccuracy) and provide the feedback "Task 2 was not attempted." in ${languageName}.
+- **OVERALL SCORE:** The 'overallScore' MUST be the simple average of the four Task 1 criteria scores, rounded to the nearest 0.5.
+` : ''}
+${!essay1Provided && essay2Provided ? `
+- **SCENARIO:** Task 2 Practice Only ('Task 1 Essay' is empty).
+- **EVALUATION:** Evaluate ONLY the Task 2 essay.
+- **TASK 1 SCORES:** For Task 1, you MUST assign a score of 0.0 for ALL criteria (TaskAchievement, CoherenceAndCohesion, LexicalResource, GrammaticalRangeAndAccuracy) and provide the feedback "Task 1 was not attempted." in ${languageName}.
+- **OVERALL SCORE:** The 'overallScore' MUST be the simple average of the four Task 2 criteria scores, rounded to the nearest 0.5.
+` : ''}
 
-**Chain-of-Thought Scoring Process:** For each of the 4 criteria in BOTH tasks, you MUST follow this internal thought process before assigning a score:
+**YOUR EVALUATION INSTRUCTIONS (MUST be followed exactly):**
+**CRITICAL SCORING RULE:** Your evaluation MUST be a direct and rigorous application of the provided IELTS Band Descriptors and the SCENARIO rules above. Avoid holistic impressions; base your score purely on the evidence you have documented in the feedback text for each criterion. Your final score must be a logical consequence of this step-by-step analysis.
+
+**Chain-of-Thought Scoring Process:** For each of the 4 criteria in the evaluated task(s), you MUST follow this internal thought process before assigning a score:
     a. First, internally analyze the essay against the band descriptors for that specific criterion.
     b. Second, write down the detailed, actionable feedback paragraph explaining the strengths and weaknesses that justify a specific band score.
     c. FINALLY, based ONLY on the evidence documented in step 'b', assign the numerical score (1-9).
 
 1.  **Language Requirement:** You MUST write all textual feedback (e.g., \`overallFeedback\`, the \`feedback\` for each criterion, \`strengths\`, \`areasForImprovement\`, and the \`explanation\` for each improvement) in **${languageName}**.
 2.  **Terminology Rule:** All IELTS criteria keys (e.g., 'TaskAchievement', 'LexicalResource'), the names of the tasks ("Task 1", "Task 2"), and the overall JSON structure itself MUST remain in English. **Do not translate the JSON keys.**
-3.  **Handle Empty or Underlength Essays:**
-    - If the 'Task 1 Essay' is empty or has fewer than 20 words, you MUST assign a score of 1.0 for ALL Task 1 criteria (TaskAchievement, CoherenceAndCohesion, LexicalResource, GrammaticalRangeAndAccuracy) and provide feedback stating that the task was not attempted (in ${languageName}).
-    - If the 'Task 2 Essay' is empty or has fewer than 20 words, you MUST assign a score of 1.0 for ALL Task 2 criteria (TaskResponse, CoherenceAndCohesion, LexicalResource, GrammaticalRangeAndAccuracy) and provide feedback stating that the task was not attempted (in ${languageName}).
-4.  **Analyze Both Essays:** Read the prompts and the student's essays carefully.
-5.  **Determine Individual Scores & Detailed Feedback:** For EACH task, provide a band score (1-9) AND a detailed, actionable feedback paragraph (2-3 sentences in ${languageName}) for each of the 4 criteria. The feedback MUST explain *why* the student received that score, referencing the official band descriptors, and provide specific advice on how to improve to reach their target score of ${targetScore}. The score and feedback must be in a nested object.
-6.  **Determine Overall Score & Feedback:** Based on the individual scores, determine a single overall band score (1-9) for the entire test. Write a concise summary (in ${languageName}) of overall strengths and weaknesses, keeping the student's target score of ${targetScore} in mind.
-7.  **Identify Strengths:** Provide 2-3 specific, positive comments (in ${languageName}) about what the student did well across both essays. Each strength should be a single string in an array.
-8.  **Identify Areas for Improvement:** Provide the 3 most important areas for improvement that will help the student reach their target score of ${targetScore}. For each, provide a 'title' (in English, e.g., "Task Response") and 'feedback' (a short, actionable paragraph in ${languageName}).
-9.  **Generate Specific Improvements:** Create a list of 10-15 specific, text-level improvement suggestions across both essays. Each improvement must include:
+3.  **Analyze Essays:** Read the prompts and the student's provided essays carefully.
+4.  **Determine Individual Scores & Detailed Feedback:** For EACH task that was submitted, provide a band score (1-9) AND a detailed, actionable feedback paragraph (2-3 sentences in ${languageName}) for each of the 4 criteria. The feedback MUST explain *why* the student received that score, referencing the official band descriptors, and provide specific advice on how to improve. For non-submitted tasks, follow the SCENARIO rules.
+5.  **Determine Overall Score & Feedback:** Calculate the 'overallScore' based on the SCENARIO rule. Write a concise summary (in ${languageName}) of overall strengths and weaknesses for the submitted work.
+6.  **Identify Strengths:** Provide 2-3 specific, positive comments (in ${languageName}) about what the student did well.
+7.  **Identify Areas for Improvement:** Provide the 3 most important areas for improvement that will help the student reach their target score. For each, provide a 'title' (in English) and 'feedback' (in ${languageName}).
+8.  **Generate Specific Improvements:** Create a list of 10-15 specific, text-level improvement suggestions from the submitted essay(s). Each improvement must include:
     - \`taskNumber\`: The task (1 or 2) where the original text is found.
-    - \`originalText\`: The exact, shortest possible text snippet from the essay.
-    - \`improvedText\`: The corrected or improved version. When a specific word or phrase is changed, you MUST use the markdown format "~~old text~~ **new text**" to clearly show the change.
-    - \`explanation\`: A clear, concise explanation (in ${languageName}) of why the change helps.
+    - \`originalText\`: The exact text snippet from the essay.
+    - \`improvedText\`: The corrected version, using "~~old~~ **new**" markdown for changes.
+    - \`explanation\`: A clear explanation (in ${languageName}).
     - \`criterion\`: The relevant official evaluation criterion (in English).
-10. **Format Your Response:** You MUST respond ONLY with a JSON object that strictly follows the provided schema. Do not include any text, markdown, or explanations outside of the JSON structure.`;
+9.  **Format Your Response:** You MUST respond ONLY with a JSON object that strictly follows the provided schema. Do not include any text, markdown, or explanations outside of the JSON structure.`;
 
   const criterionSchema = {
     type: Type.OBJECT,

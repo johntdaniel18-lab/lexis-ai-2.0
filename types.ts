@@ -69,6 +69,8 @@ export interface EssayFeedback {
   };
 }
 
+export type TestMode = 'TASK_1' | 'TASK_2' | 'MOCK_TEST';
+
 export interface CompletedTest {
   id: string; // Unique ID for this attempt, e.g., timestamp
   testId: number;
@@ -81,6 +83,7 @@ export interface CompletedTest {
   vocabulary: VocabularyItem[];
   chatHistoryTask1: ChatMessage[];
   chatHistoryTask2: ChatMessage[];
+  testMode: TestMode;
 }
 
 

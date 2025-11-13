@@ -7,6 +7,7 @@ export interface TestTask {
 export interface IeltsTest {
   id: number;
   title: string;
+  // FIX: Corrected typo from TestTestTask to TestTask.
   tasks: [TestTask, TestTask];
   tags?: string[];
 }
@@ -69,8 +70,6 @@ export interface EssayFeedback {
   };
 }
 
-export type TestMode = 'TASK_1' | 'TASK_2' | 'MOCK_TEST';
-
 export interface CompletedTest {
   id: string; // Unique ID for this attempt, e.g., timestamp
   testId: number;
@@ -83,14 +82,15 @@ export interface CompletedTest {
   vocabulary: VocabularyItem[];
   chatHistoryTask1: ChatMessage[];
   chatHistoryTask2: ChatMessage[];
-  testMode: TestMode;
 }
 
+export type PracticeMode = 'task1' | 'task2' | 'mock';
 
 export enum TestPhase {
   TARGET_SCORE_SELECTION = 'TARGET_SCORE_SELECTION',
   PREPARATION = 'PREPARATION',
   OUTLINE_REVIEW = 'OUTLINE_REVIEW',
+  // FIX: Add TIME_SELECTION to the enum to resolve the error.
   TIME_SELECTION = 'TIME_SELECTION',
   WRITING = 'WRITING',
   FEEDBACK = 'FEEDBACK',

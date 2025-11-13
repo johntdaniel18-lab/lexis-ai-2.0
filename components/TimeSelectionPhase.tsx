@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
 import Button from './common/Button';
-// FIX: Import TestMode to use as a prop type.
-import { TestMode } from '../types';
+import { PracticeMode } from '../types';
 
 interface TimeSelectionPhaseProps {
   onConfirm: (durationInSeconds: number) => void;
-  defaultDuration?: number;
-  // FIX: Add optional testMode prop to display context-specific time recommendations.
-  testMode?: TestMode;
+  practiceMode: PracticeMode;
 }
 
-const TimeSelectionPhase: React.FC<TimeSelectionPhaseProps> = ({ onConfirm, defaultDuration = 60, testMode }) => {
-  const [durationInMinutes, setDurationInMinutes] = useState(defaultDuration);
+const TimeSelectionPhase: React.FC<TimeSelectionPhaseProps> = ({ onConfirm, practiceMode }) => {
+  const getDefaultDuration = () => {
+    switch (practiceMode) {
+      case 'task1': return 20;
+      case 'task2': return 40;
+      case 'mock': 
+      default:      return 60;
+    }
+  };
+
+  const [durationInMinutes, setDurationInMinutes] = useState(getDefaultDuration());
 
   const handleAdjustTime = (amount: number) => {
     setDurationInMinutes(prev => {
@@ -26,12 +32,31 @@ const TimeSelectionPhase: React.FC<TimeSelectionPhaseProps> = ({ onConfirm, defa
     return `${minutes.toString().padStart(2, '0')}:00`;
   };
 
+  const description = {
+    task1: "Choose your practice duration. 20 minutes is recommended.",
+    task2: "Choose your practice duration. 40 minutes is recommended.",
+    mock: "Choose your desired practice duration. 60 minutes is the official exam time."
+  };
+
+  const recommendationLabel = () => {
+    const defaultDuration = getDefaultDuration();
+    if (durationInMinutes !== defaultDuration) return null;
+    
+    switch (practiceMode) {
+      case 'task1': return <p className="text-sm font-semibold text-emerald-600 mt-1">(Recommended Time)</p>;
+      case 'task2': return <p className="text-sm font-semibold text-emerald-600 mt-1">(Recommended Time)</p>;
+      case 'mock': return <p className="text-sm font-semibold text-emerald-600 mt-1">(Official Exam Time)</p>;
+      default: return null;
+    }
+  };
+
+
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-slate-200">
       <div className="p-8 text-center border-b border-slate-200">
         <h3 className="text-2xl font-bold text-slate-900">Set Your Writing Time</h3>
         <p className="mt-2 text-slate-500">
-          Choose your desired practice duration. 60 minutes is the official exam time for a full test.
+          {description[practiceMode]}
         </p>
       </div>
 
@@ -49,15 +74,7 @@ const TimeSelectionPhase: React.FC<TimeSelectionPhaseProps> = ({ onConfirm, defa
             <div className="text-6xl font-extrabold text-orange-600 tabular-nums">
               {formatTime(durationInMinutes)}
             </div>
-            {durationInMinutes === 60 && testMode === 'MOCK_TEST' && (
-                <p className="text-sm font-semibold text-emerald-600 mt-1">(Official Exam Time)</p>
-            )}
-             {durationInMinutes === 20 && testMode === 'TASK_1' && (
-                <p className="text-sm font-semibold text-emerald-600 mt-1">(Recommended Time)</p>
-            )}
-             {durationInMinutes === 40 && testMode === 'TASK_2' && (
-                <p className="text-sm font-semibold text-emerald-600 mt-1">(Recommended Time)</p>
-            )}
+            {recommendationLabel()}
           </div>
           <Button 
             onClick={() => handleAdjustTime(10)} 

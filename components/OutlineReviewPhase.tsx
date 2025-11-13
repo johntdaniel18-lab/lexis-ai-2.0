@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { IeltsTest, ChatMessage, TestMode } from '../types';
+import { IeltsTest, ChatMessage } from '../types';
 import { getEssayOutlines } from '../services/geminiService';
 import Spinner from './common/Spinner';
 import Button from './common/Button';
@@ -11,12 +11,11 @@ interface OutlineReviewPhaseProps {
   chatHistoryTask2: ChatMessage[];
   targetScore: number;
   language: 'en' | 'vi';
-  onStartWriting: () => void;
+  onProceedToWriting: () => void;
   onOutlinesGenerated: (outlines: { task1Outline?: string; task2Outline?: string }) => void;
-  testMode: TestMode;
 }
 
-const OutlineReviewPhase: React.FC<OutlineReviewPhaseProps> = ({ test, chatHistoryTask1, chatHistoryTask2, targetScore, language, onStartWriting, onOutlinesGenerated, testMode }) => {
+const OutlineReviewPhase: React.FC<OutlineReviewPhaseProps> = ({ test, chatHistoryTask1, chatHistoryTask2, targetScore, language, onProceedToWriting, onOutlinesGenerated }) => {
   const [outlines, setOutlines] = useState<{ task1Outline?: string; task2Outline?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,35 +52,29 @@ const OutlineReviewPhase: React.FC<OutlineReviewPhaseProps> = ({ test, chatHisto
       return <div className="text-center p-8 bg-red-50 text-red-700 rounded-lg border border-red-200">{error}</div>;
     }
     if (outlines) {
-      const isMockTest = testMode === 'MOCK_TEST';
-      const showTask1 = testMode === 'TASK_1' || isMockTest;
-      const showTask2 = testMode === 'TASK_2' || isMockTest;
+      const hasTask1Outline = outlines.task1Outline && outlines.task1Outline.trim() !== "";
+      const hasTask2Outline = outlines.task2Outline && outlines.task2Outline.trim() !== "";
       
       return (
-        <div className={`grid grid-cols-1 ${isMockTest ? 'md:grid-cols-2' : 'max-w-3xl mx-auto'} gap-6 p-6`}>
-          {showTask1 && (
+        <div className={`grid grid-cols-1 ${hasTask1Outline && hasTask2Outline ? 'md:grid-cols-2' : ''} gap-6 p-6`}>
+          {hasTask1Outline && (
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 shadow-sm">
               <h4 className="font-bold text-slate-800 mb-3 text-lg border-b border-slate-200 pb-2">Task 1 Outline</h4>
               <div className="space-y-2">
-                {outlines.task1Outline ? (
-                  <MarkdownRenderer text={outlines.task1Outline} />
-                ) : (
-                  <p className="text-slate-500 p-4 text-center italic">You didn't brainstorm for this task, so no outline was generated.</p>
-                )}
+                <MarkdownRenderer text={outlines.task1Outline!} />
               </div>
             </div>
           )}
-          {showTask2 && (
-             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 shadow-sm">
+          {hasTask2Outline && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 shadow-sm">
               <h4 className="font-bold text-slate-800 mb-3 text-lg border-b border-slate-200 pb-2">Task 2 Outline</h4>
               <div className="space-y-2">
-                 {outlines.task2Outline ? (
-                  <MarkdownRenderer text={outlines.task2Outline} />
-                ) : (
-                  <p className="text-slate-500 p-4 text-center italic">You didn't brainstorm for this task, so no outline was generated.</p>
-                )}
+                 <MarkdownRenderer text={outlines.task2Outline!} />
               </div>
             </div>
+          )}
+          {!hasTask1Outline && !hasTask2Outline && (
+             <p className="text-slate-500 p-4 text-center italic col-span-1">You didn't brainstorm for any task, so no outlines were generated.</p>
           )}
         </div>
       );
@@ -98,7 +91,7 @@ const OutlineReviewPhase: React.FC<OutlineReviewPhaseProps> = ({ test, chatHisto
       {renderContent()}
       {!isLoading && !error && (
         <div className="p-6 border-t border-slate-200 bg-slate-50/50 text-right">
-          <Button onClick={onStartWriting} variant="primary">Set Time & Start Writing</Button>
+          <Button onClick={onProceedToWriting} variant="primary">Continue to Time Selection</Button>
         </div>
       )}
     </div>

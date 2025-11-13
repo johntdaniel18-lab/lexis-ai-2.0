@@ -4,7 +4,7 @@ import DashboardScreen from './components/DashboardScreen';
 import TestScreen from './components/TestScreen';
 import AdminDashboardScreen from './components/admin/AdminDashboardScreen';
 import FeedbackViewer from './components/FeedbackViewer';
-import { IeltsTest, CompletedTest, DrillCriterion, TestMode } from './types';
+import { IeltsTest, CompletedTest, DrillCriterion, PracticeMode } from './types';
 import { IELTS_TESTS, TESTS_VERSION } from './constants';
 import Button from './components/common/Button';
 import Logo from './components/icons/Logo';
@@ -12,17 +12,15 @@ import { validateApiKey } from './services/geminiService';
 import DrillScreen from './components/DrillScreen';
 import ProgressHubScreen from './components/ProgressHubScreen';
 import LearnScreen from './components/LearnScreen';
-import LandingPage from './components/LandingPage';
+import ModeSelectionScreen from './components/ModeSelectionScreen';
 
 const APP_HISTORY_KEY = 'lexis-ai-test-history';
 const APP_TESTS_KEY = 'lexis-ai-tests';
 const API_KEY_STORAGE_KEY = 'lexis-ai-api-key';
 
 type StudentView = 'dashboard' | 'progress' | 'learn';
-type AppState = 'landing' | 'main';
 
 const App: React.FC = () => {
-  const [appState, setAppState] = useState<AppState>('landing');
   const [userRole, setUserRole] = useState<'student' | 'admin' | null>(null);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -66,7 +64,7 @@ const App: React.FC = () => {
   }, [tests]);
 
   const [selectedTest, setSelectedTest] = useState<IeltsTest | null>(null);
-  const [selectedTestMode, setSelectedTestMode] = useState<TestMode | null>(null);
+  const [practiceMode, setPracticeMode] = useState<PracticeMode | null>(null);
   const [viewingCompletedTest, setViewingCompletedTest] = useState<CompletedTest | null>(null);
   const [completedTestForRewrite, setCompletedTestForRewrite] = useState<CompletedTest | null>(null);
   const [activeDrill, setActiveDrill] = useState<{criterion: DrillCriterion; topic: string} | null>(null);
@@ -109,10 +107,6 @@ const App: React.FC = () => {
       };
     }
   }, [controlHeader]);
-  
-  const handleStartApp = useCallback(() => {
-    setAppState('main');
-  }, []);
 
 
   const handleLogin = useCallback(async (role: 'student' | 'admin', apiKey?: string) => {
@@ -129,7 +123,7 @@ const App: React.FC = () => {
   const handleLogout = useCallback(() => {
     setUserRole(null);
     setSelectedTest(null);
-    setSelectedTestMode(null);
+    setPracticeMode(null);
     setViewingCompletedTest(null);
     setCompletedTestForRewrite(null);
     setActiveDrill(null);
@@ -137,10 +131,14 @@ const App: React.FC = () => {
     sessionStorage.removeItem(API_KEY_STORAGE_KEY);
   }, []);
 
-  const handleSelectTest = useCallback((test: IeltsTest, mode: TestMode) => {
+  const handleSelectTest = useCallback((test: IeltsTest) => {
     setSelectedTest(test);
-    setSelectedTestMode(mode);
-    setCompletedTestForRewrite(null); // Clear rewrite state when starting a fresh test
+    setPracticeMode(null); // Reset mode, user will choose on the next screen
+    setCompletedTestForRewrite(null); 
+  }, []);
+
+  const handleModeSelected = useCallback((mode: PracticeMode) => {
+    setPracticeMode(mode);
   }, []);
   
   const handleViewCompletedTest = useCallback((completedTest: CompletedTest) => {
@@ -150,9 +148,9 @@ const App: React.FC = () => {
 
   const handleExit = useCallback(() => {
     setSelectedTest(null);
-    setSelectedTestMode(null);
+    setPracticeMode(null);
     setViewingCompletedTest(null);
-    setCompletedTestForRewrite(null); // Ensure rewrite state is cleared
+    setCompletedTestForRewrite(null); 
     setActiveDrill(null);
     setCurrentView('dashboard'); // Always return to the main dashboard
   }, []);
@@ -165,7 +163,7 @@ const App: React.FC = () => {
     };
     setCompletedTests(prev => [...prev, newCompletedTest]);
     setSelectedTest(null);
-    setSelectedTestMode(null);
+    setPracticeMode(null);
     setViewingCompletedTest(newCompletedTest);
   }, []);
 
@@ -174,7 +172,7 @@ const App: React.FC = () => {
     if (originalTest) {
       setCompletedTestForRewrite(testToRewrite);
       setSelectedTest(originalTest);
-      setSelectedTestMode(testToRewrite.testMode);
+      setPracticeMode('mock'); // A rewrite is always a full mock test
       setViewingCompletedTest(null);
     } else {
       console.error("Could not find original test to rewrite.");
@@ -242,13 +240,20 @@ const App: React.FC = () => {
             onStartDrill={handleStartDrill}
         />;
       }
-      if (selectedTest && selectedTestMode) {
+      if (selectedTest && practiceMode) {
         return <TestScreen 
           test={selectedTest} 
-          testMode={selectedTestMode}
+          practiceMode={practiceMode}
           onExit={handleExit} 
           onCompleteTest={handleCompleteTest}
           completedTestForRewrite={completedTestForRewrite} 
+        />;
+      }
+      if (selectedTest) {
+        return <ModeSelectionScreen 
+          test={selectedTest}
+          onModeSelect={handleModeSelected}
+          onExit={handleExit}
         />;
       }
        if (currentView === 'learn') {
@@ -267,10 +272,6 @@ const App: React.FC = () => {
   };
   
   const isWorkspaceView = userRole === 'student' && (selectedTest || viewingCompletedTest || activeDrill);
-
-  if (appState === 'landing') {
-    return <LandingPage onStart={handleStartApp} />;
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans antialiased flex flex-col">

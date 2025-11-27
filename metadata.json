@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Lexis AI",
+  "description": "An AI-powered application to help students practice for the IELTS writing exam. It provides guided task analysis, vocabulary suggestions, a timed writing environment, and detailed, criteria-based feedback from Gemini.",
+  "requestFramePermissions": []
+}

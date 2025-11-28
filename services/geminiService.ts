@@ -1,6 +1,3 @@
-
-
-
 // FIX: Import GenerateContentResponse to correctly type API call results.
 import { GoogleGenAI, Chat, Type, Part, GenerateContentResponse } from "@google/genai";
 // FIX: Import CriterionScore to correctly type the getEssayFeedback placeholder.
@@ -63,7 +60,7 @@ export const validateApiKey = async (apiKey: string): Promise<void> => {
         }
         
         if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-            throw new Error("API rate limit exceeded. Your key seems valid, but you've made too many requests. Please wait a moment and try again.");
+            throw new Error("API Rate Limit Reached. This can happen if you perform actions too quickly or if your API key is being used on another device. Please wait one minute and try again.");
         }
         
         if (errorMessage.includes('API key not valid') || errorMessage.includes('400')) {
@@ -138,14 +135,17 @@ export const startPreparationChat = async (test: IeltsTest, taskNumber: 1 | 2, t
 **TERMINOLOGY RULE:** All specific IELTS terminology (e.g., Task 1, Task 2, Coherence and Cohesion, Lexical Resource) MUST ALWAYS remain in English.
 **OUTPUT FORMAT RULE:** At the very end of *every* response, you MUST provide a JSON block enclosed in \`\`\`json ... \`\`\`. This JSON object MUST contain two keys:
 1. "vocabulary": An array of objects (keys: 'word', 'definition', 'example') if you explicitly introduced new vocabulary in the text, otherwise an empty array.
-2. "suggestions": An array of 3-4 short, specific follow-up questions or actions the student can ask/take next to advance the learning (e.g., "How do I paraphrase this?", "Give me an example introduction").`;
+2. "suggestions": An array of **exactly 3** short, direct questions in ${languageName} that follow these strict rules:
+    - **Relevance:** Suggestions MUST be highly relevant and context-aware, guiding the student to the very next logical step in analyzing the specific chart/prompt.
+    - **Conciseness:** Each suggestion MUST be a short, direct question, ideally under 10 words.
+    - **Forbidden Content:** Do NOT ask generic questions about IELTS skills (e.g., 'What is paraphrasing?'). The focus must be on applying the skill to the current task.`;
 
   const vocabularyPrompting = `In Step 6 (or whenever you introduce vocabulary), first provide a concise list in the text. Then, ensure the full details are included in the "vocabulary" array of the JSON block at the end.`;
 
   const concludingPrompt = `Immediately after providing the vocabulary, you MUST conclude your response by asking if they feel ready to start writing. Remind them to click the "I'm Ready to Write!" button when they are ready. Do not add any other text after this.`;
 
   const ragInstruction = `
-**CORE INSTRUCTION:** For every question the student asks, you will be provided with CONTEXT from an expert knowledge base. You MUST base your answer primarily on this provided CONTEXT. If the context is not relevant, you can use your general knowledge but state that the provided information wasn't a perfect match.`;
+**KNOWLEDGE BASE RULE:** You have access to supplementary knowledge from an expert knowledge base called CONTEXT to help you answer student questions accurately. Use this information to inform your responses. However, you MUST NEVER mention the terms 'CONTEXT', 'knowledge base', 'provided information', or 'supplementary knowledge' in your conversation. Answer all questions naturally as if the knowledge is your own. If the provided CONTEXT is not relevant to the question, simply use your general expertise without mentioning the external information at all.`;
   
   const dataGroundingInstruction = task.keyInformation ? `
 **CRITICAL DATA SOURCE:** You MUST use the following key information as the single source of truth for all statistics in this task. Do not infer or invent data. If the student mentions a number that contradicts this information, gently correct them using this data.

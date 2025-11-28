@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { IeltsTest, TestPhase, CompletedTest, VocabularyItem, ChatMessage, PracticeMode, EssayFeedback } from '../types';
 import TargetScoreSelectionPhase from './TargetScoreSelectionPhase';
 import PreparationPhase from './PreparationPhase';
@@ -9,6 +9,7 @@ import TimeSelectionPhase from './TimeSelectionPhase';
 import Spinner from './common/Spinner';
 import { getEssayFeedback, startPreparationChat, continuePreparationChat } from '../services/geminiService';
 import { Chat } from '@google/genai';
+import Button from './common/Button';
 
 interface TestScreenProps {
   test: IeltsTest;
@@ -93,7 +94,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
       } else if (errorMessage.includes("api key not found")) {
           errorSetter("API Key is missing. Please log out and re-enter your key to continue.");
       } else if (errorMessage.includes('429') || errorMessage.includes('resource_exhausted')) {
-          errorSetter("The AI is currently busy. Please try again in a few moments.");
+          errorSetter("API Rate Limit Reached. This can happen if you perform actions too quickly or if your API key is being used on another device. Please wait one minute and try again.");
       } else {
           errorSetter("An unexpected error occurred while communicating with the AI. Please try again.");
       }
@@ -142,6 +143,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
   
   const handleInitializeTask = useCallback(async (taskNumber: 1 | 2) => {
     if (targetScore === null) return;
+    
     if (taskNumber === 2 && isTask2Initialized.current) return;
     if (taskNumber === 1 && messagesTask1.length > 0) return; 
     if (taskNumber === 2) isTask2Initialized.current = true;
@@ -183,6 +185,28 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
 
     const newMessages: ChatMessage[] = [...currentMessages, { sender: 'user', text: message }];
     setMessages(newMessages);
+
+    // --- START: Intelligent Chat Termination ---
+    const lastAiMessage = currentMessages.length > 0 ? currentMessages[currentMessages.length - 1] : null;
+    const isFinalPrepStep = lastAiMessage && lastAiMessage.sender === 'ai' && (lastAiMessage.text.toLowerCase().includes('ready to write') || lastAiMessage.text.includes('Proceed to Writing'));
+
+    const affirmativeResponses = ['ok', 'okay', 'yes', 'sure', 'got it', 'i am ready', "i'm ready", 'thanks', 'thank you', 'da', 'roi', 'roi a', 'da roi', 'vâng', 'được', 'hiểu rồi'];
+    const isAffirmative = affirmativeResponses.includes(message.trim().toLowerCase());
+
+    if (isFinalPrepStep && isAffirmative) {
+        const confirmationText = language === 'vi' 
+            ? "Tuyệt vời! Bất cứ khi nào bạn sẵn sàng, hãy nhấp vào nút 'Proceed to Writing' để chuyển sang bước tiếp theo."
+            : "Great! Whenever you're ready, click the 'Proceed to Writing' button to move to the next step.";
+        
+        setTimeout(() => {
+            setMessages([...newMessages, { sender: 'ai', text: confirmationText }]);
+            setSuggestions([]); // Clear suggestions as the next step is to proceed
+        }, 300); // Small delay to simulate AI "thinking"
+        
+        return; // Bypass the API call
+    }
+    // --- END: Intelligent Chat Termination ---
+
     setIsPrepLoading(true);
     setPrepError(null);
 
@@ -205,7 +229,24 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
     } finally {
       setIsPrepLoading(false);
     }
-  }, [sessionTask1, sessionTask2, messagesTask1, messagesTask2]);
+  }, [sessionTask1, sessionTask2, messagesTask1, messagesTask2, language]);
+
+  // FIX: Centralize initialization logic here. This effect triggers the AI chat
+  // only when the component enters the PREPARATION phase, ensuring all state
+  // (like 'language') is consistent.
+  useEffect(() => {
+    if (phase === TestPhase.PREPARATION) {
+      const tasksToPractice = practiceMode === 'task1' ? ['task1'] : practiceMode === 'task2' ? ['task2'] : ['task1', 'task2'];
+      const taskNumToInit = tasksToPractice[0] === 'task1' ? 1 : 2;
+      const messages = taskNumToInit === 1 ? messagesTask1 : messagesTask2;
+
+      // Only initialize if the chat is empty. This prevents re-initialization on re-renders.
+      if (messages.length === 0) {
+        handleInitializeTask(taskNumToInit);
+      }
+    }
+  }, [phase, practiceMode, messagesTask1, messagesTask2, handleInitializeTask]);
+
 
   const renderPhase = () => {
     if (isLoading) {
@@ -331,9 +372,18 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
     <div className="space-y-8">
       <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200 flex justify-between items-center">
         <h2 className="text-2xl font-extrabold text-slate-900">{test.title}</h2>
-        <button onClick={onExit} className="text-slate-500 hover:text-slate-800">Exit Test</button>
+         <div className="flex items-center gap-4">
+            {phase === TestPhase.PREPARATION && (
+                <Button onClick={handlePreparationComplete} variant="primary">
+                    Proceed to Writing
+                </Button>
+            )}
+            <Button onClick={onExit} variant="secondary">Exit Test</Button>
+        </div>
       </div>
-      {renderPhase()}
+      <div className={phase === TestPhase.PREPARATION ? "h-[calc(100vh-13rem)]" : ""}>
+        {renderPhase()}
+      </div>
     </div>
   );
 };

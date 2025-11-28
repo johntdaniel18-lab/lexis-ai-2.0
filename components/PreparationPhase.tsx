@@ -121,11 +121,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
     }
   }, [messagesTask1, messagesTask2, activeTab, isLoading, isInteractive]);
   
-  useEffect(() => {
-    if (isInteractive) {
-      onInitializeTask(tasksToPractice[0] === 'task1' ? 1 : 2);
-    }
-  }, [onInitializeTask, isInteractive, tasksToPractice]);
+  // FIX: Removed the problematic initialization useEffect. Logic is now handled by the parent TestScreen.
 
   const handleTabChange = (tab: ActiveTab) => {
     if (tab === 'vocabulary') {
@@ -194,12 +190,12 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
         {/* DYNAMIC SUGGESTION BAR */}
         {isInteractive && showActionButtons && (
             <div className="p-3 border-t border-slate-200 bg-white/80 backdrop-blur-sm">
-                <div className="flex items-center justify-center flex-wrap gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
                     {activeSuggestions.map((suggestion, idx) => (
                         <button
                             key={idx}
                             onClick={() => handleSuggestionClick(suggestion)}
-                            className="px-3 py-1 text-xs font-semibold text-slate-600 bg-slate-200 rounded-full hover:bg-slate-300 transition-colors text-left max-w-[200px] truncate"
+                            className="flex-shrink-0 px-3 py-1 text-xs font-semibold text-slate-600 bg-slate-200 rounded-full hover:bg-slate-300 transition-colors whitespace-nowrap"
                             title={suggestion}
                         >
                             {suggestion}
@@ -207,7 +203,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
                     ))}
                     <button
                         onClick={handleUserThinking}
-                        className="px-3 py-1 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded-full hover:bg-slate-200 transition-colors"
+                        className="flex-shrink-0 px-3 py-1 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded-full hover:bg-slate-200 transition-colors whitespace-nowrap"
                     >
                         {t.think}
                     </button>
@@ -323,7 +319,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
 
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-slate-200 flex flex-col" style={isInteractive ? { height: '80vh' } : { height: 'calc(100vh - 12rem)' }}>
+    <div className="flex flex-col h-full">
        {/* Image Modal */}
       {imageModalUrl && (
         <div
@@ -348,19 +344,16 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
           </button>
         </div>
       )}
-
-      <div className="p-6 border-b border-slate-200 flex-shrink-0">
-        <h3 className="text-xl font-extrabold text-slate-900">{isInteractive ? 'Step 1: AI-Guided Preparation' : 'Preparation Review'}</h3>
-        <p className="mt-1 text-slate-500">{isInteractive ? 'Review tasks, chat with your AI tutor, and study suggested vocabulary.' : 'Review your AI chat, vocabulary, and outlines.'}</p>
-      </div>
       
-      <div className="flex flex-row flex-grow overflow-auto">
-        {/* Task Details Panel (Interactive Mode Only) */}
+      {/* Main Content Area: Two-panel layout */}
+      <div className={`flex-grow flex flex-row gap-6 overflow-hidden ${isInteractive ? '' : ''}`}>
+        
+        {/* Left Panel (Task Details) */}
         {mode === 'interactive' && (
-          <aside className="w-[65%] p-6 border-r border-slate-200 bg-slate-50 overflow-y-auto">
+          <div className="w-7/12 bg-white rounded-lg shadow-md border border-slate-200 p-6 overflow-y-auto">
             <div className="space-y-6">
                {(activeTab === 'task1' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task1')) && tasksToPractice.includes('task1') && (
-                 <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                 <div>
                   <h5 className="font-extrabold text-slate-800 mb-2 text-lg">Task 1</h5>
                   {test.tasks[0].imageUrl && (
                     <div 
@@ -378,17 +371,17 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
                 </div>
               )}
               {(activeTab === 'task2' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task2')) && tasksToPractice.includes('task2') && (
-                <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                <div>
                   <h5 className="font-extrabold text-slate-800 mb-2 text-lg">Task 2</h5>
                   <p className="text-base text-slate-600 leading-relaxed">{test.tasks[1].prompt}</p>
                 </div>
               )}
             </div>
-          </aside>
+          </div>
         )}
 
         {/* Right Panel (Chat/Vocab/Outlines) */}
-        <div className={`flex flex-col bg-white min-w-0 ${mode === 'interactive' ? 'w-[35%]' : 'w-full'}`}>
+        <div className={`flex flex-col min-w-0 ${mode === 'interactive' ? 'w-5/12 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden' : 'w-full'}`}>
           {/* Sticky Tab Bar */}
           <div className="sticky top-0 z-10 p-2 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
             <nav className="flex items-center gap-2">
@@ -430,12 +423,6 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
 
         </div>
       </div>
-      
-       {isInteractive && (
-        <div className="p-6 border-t border-slate-200 bg-slate-50/50 text-right flex-shrink-0">
-            <Button onClick={onComplete} variant="primary">I'm Ready to Write!</Button>
-        </div>
-       )}
     </div>
   );
 };

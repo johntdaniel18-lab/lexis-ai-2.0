@@ -27,6 +27,7 @@ import {
 } from './services/firebase';
 
 const API_KEY_STORAGE_KEY = 'lexis-ai-api-key';
+const API_KEY_VALIDATED_KEY = 'lexis-ai-api-key-validated';
 
 type StudentView = 'dashboard' | 'progress' | 'learn';
 
@@ -117,7 +118,16 @@ const App: React.FC = () => {
         if (!apiKey) {
             throw new Error("API Key is required to log in as a student.");
         }
-        await validateApiKey(apiKey);
+        
+        // STRATEGY 1: Smart Caching - Skip validation if key is unchanged and already validated this session.
+        const isAlreadyValidated = sessionStorage.getItem(API_KEY_VALIDATED_KEY) === 'true';
+        const storedApiKey = sessionStorage.getItem(API_KEY_STORAGE_KEY);
+
+        if (!isAlreadyValidated || storedApiKey !== apiKey) {
+          await validateApiKey(apiKey);
+          sessionStorage.setItem(API_KEY_VALIDATED_KEY, 'true');
+        }
+
         sessionStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
     }
     
@@ -148,6 +158,7 @@ const App: React.FC = () => {
     setActiveDrill(null);
     setCurrentView('dashboard');
     sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+    sessionStorage.removeItem(API_KEY_VALIDATED_KEY);
   }, []);
 
   const handleSelectTest = useCallback((test: IeltsTest) => {

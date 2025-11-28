@@ -91,11 +91,8 @@ const WritingPhase: React.FC<WritingPhaseProps> = ({ test, onSubmit, durationInS
   }, []);
 
   const handleSubmit = () => {
-    try {
-      localStorage.removeItem(autoSaveKey);
-    } catch (error) {
-      console.error("Failed to clear auto-saved essay from localStorage", error);
-    }
+    // CRITICAL FIX: Do NOT remove the autosave here.
+    // The parent (TestScreen) will remove it only AFTER a successful API response.
     const finalEssay1 = practiceMode === 'task2' ? '' : task1Essay;
     const finalEssay2 = practiceMode === 'task1' ? '' : task2Essay;
     onSubmit(finalEssay1, finalEssay2);

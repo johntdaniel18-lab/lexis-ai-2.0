@@ -94,7 +94,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
       } else if (errorMessage.includes("api key not found")) {
           errorSetter("API Key is missing. Please log out and re-enter your key to continue.");
       } else if (errorMessage.includes('429') || errorMessage.includes('resource_exhausted')) {
-          errorSetter("API Rate Limit Reached. This can happen if you perform actions too quickly or if your API key is being used on another device. Please wait one minute and try again.");
+          errorSetter("The AI is currently busy and could not provide feedback (API Rate Limit Reached). Don't worry, your essays have been saved. Please wait a moment and try submitting again.");
       } else {
           errorSetter("An unexpected error occurred while communicating with the AI. Please try again.");
       }
@@ -135,11 +135,16 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
 
       onSaveTestResult(testResultPayload);
       setPhase(TestPhase.FEEDBACK);
+
+      // SUCCESS-ONLY DELETION: Only remove the autosave after a successful submission.
+      const autoSaveKey = `lexis-ai-autosave-test-${test.id}-${practiceMode}`;
+      localStorage.removeItem(autoSaveKey);
+
     } catch (err: any) {
       handleError(err, setError);
       setIsLoading(false);
     }
-  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onSaveTestResult, language, completedTestForRewrite, messagesTask1, messagesTask2]);
+  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onSaveTestResult, language, completedTestForRewrite, messagesTask1, messagesTask2, practiceMode]);
   
   const handleInitializeTask = useCallback(async (taskNumber: 1 | 2) => {
     if (targetScore === null) return;

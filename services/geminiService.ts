@@ -1,4 +1,5 @@
 
+
 // FIX: Import GenerateContentResponse to correctly type API call results.
 import { GoogleGenAI, Chat, Type, Part, GenerateContentResponse } from "@google/genai";
 // FIX: Import CriterionScore to correctly type the getEssayFeedback placeholder.
@@ -386,7 +387,7 @@ export const getEssayFeedback = async (
     type: Type.OBJECT,
     properties: {
       id: { type: Type.STRING, description: 'A unique ID for this improvement, e.g., "imp-1"' },
-      // FIX: Removed invalid enum constraint on INTEGER type.
+      // FIX: Removed invalid enum constraint on INTEGER type. The 'enum' property is only valid for STRING types in the Gemini API.
       taskNumber: { type: Type.INTEGER }, 
       originalText: { type: Type.STRING },
       improvedText: { type: Type.STRING },

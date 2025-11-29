@@ -317,6 +317,47 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
     );
   };
 
+  if (!isInteractive) {
+    return (
+      <div className="flex flex-col h-full bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
+        {imageModalUrl && (
+          <div
+            className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 cursor-zoom-out"
+            onClick={() => setImageModalUrl(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Full-size image view"
+          >
+            <img
+              src={imageModalUrl}
+              alt="Task diagram full size"
+              className="max-w-[95vw] max-h-[95vh] object-contain rounded-lg shadow-2xl cursor-default"
+              onClick={(e) => e.stopPropagation()} 
+            />
+            <button
+              className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors text-5xl font-light"
+              onClick={() => setImageModalUrl(null)}
+              aria-label="Close image view"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+        <div className="sticky top-0 z-10 p-2 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
+          <nav className="flex items-center gap-2">
+            {tasksToPractice.includes('task1') && <button onClick={() => handleTabChange('task1')} className={`flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'task1' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Task 1 Prep</button>}
+            {tasksToPractice.includes('task2') && <button onClick={() => handleTabChange('task2')} className={`flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'task2' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Task 2 Prep</button>}
+            <button onClick={() => handleTabChange('vocabulary')} className={`relative flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'vocabulary' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Vocabulary</button>
+            {mode === 'review' && (<button onClick={() => handleTabChange('outlines')} className={`relative flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'outlines' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Outlines</button>)}
+          </nav>
+        </div>
+        {activeTab === 'task1' && renderChatInterface()}
+        {activeTab === 'task2' && renderChatInterface()}
+        {activeTab === 'vocabulary' && renderVocabularyInterface()}
+        {activeTab === 'outlines' && mode === 'review' && renderOutlinesInterface()}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -346,42 +387,40 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
       )}
       
       {/* Main Content Area: Two-panel layout */}
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-slate-200 flex flex-col h-full">
+      <div className="flex-grow flex flex-row gap-6 overflow-hidden">
         
         {/* Left Panel (Task Details) */}
-        {mode === 'interactive' && (
-          <div className="w-7/12 bg-white rounded-lg shadow-md border border-slate-200 p-6 overflow-y-auto">
-            <div className="space-y-6">
-               {(activeTab === 'task1' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task1')) && tasksToPractice.includes('task1') && (
-                 <div>
-                  <h5 className="font-extrabold text-slate-800 mb-2 text-lg">Task 1</h5>
-                  {test.tasks[0].imageUrl && (
-                    <div 
-                      className="mb-3 p-1 border rounded-md bg-slate-100 group cursor-zoom-in"
-                      onClick={() => setImageModalUrl(test.tasks[0].imageUrl)}
-                    >
-                      <img 
-                        src={test.tasks[0].imageUrl} 
-                        alt="Task 1 Diagram - Click to enlarge" 
-                        className="max-w-full rounded transition-transform duration-200 group-hover:scale-[1.01]" 
-                      />
-                    </div>
-                  )}
-                  <p className="text-base text-slate-600 leading-relaxed">{test.tasks[0].prompt}</p>
-                </div>
-              )}
-              {(activeTab === 'task2' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task2')) && tasksToPractice.includes('task2') && (
-                <div>
-                  <h5 className="font-extrabold text-slate-800 mb-2 text-lg">Task 2</h5>
-                  <p className="text-base text-slate-600 leading-relaxed">{test.tasks[1].prompt}</p>
-                </div>
-              )}
-            </div>
+        <div className="w-7/12 bg-white rounded-lg shadow-md border border-slate-200 p-6 overflow-y-auto">
+          <div className="space-y-6">
+             {(activeTab === 'task1' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task1')) && tasksToPractice.includes('task1') && (
+               <div>
+                <h5 className="font-extrabold text-slate-800 mb-2 text-lg">Task 1</h5>
+                {test.tasks[0].imageUrl && (
+                  <div 
+                    className="mb-3 p-1 border rounded-md bg-slate-100 group cursor-zoom-in"
+                    onClick={() => setImageModalUrl(test.tasks[0].imageUrl)}
+                  >
+                    <img 
+                      src={test.tasks[0].imageUrl} 
+                      alt="Task 1 Diagram - Click to enlarge" 
+                      className="max-w-full rounded transition-transform duration-200 group-hover:scale-[1.01]" 
+                    />
+                  </div>
+                )}
+                <p className="text-base text-slate-600 leading-relaxed">{test.tasks[0].prompt}</p>
+              </div>
+            )}
+            {(activeTab === 'task2' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task2')) && tasksToPractice.includes('task2') && (
+              <div>
+                <h5 className="font-extrabold text-slate-800 mb-2 text-lg">Task 2</h5>
+                <p className="text-base text-slate-600 leading-relaxed">{test.tasks[1].prompt}</p>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Right Panel (Chat/Vocab/Outlines) */}
-        <div className={`flex flex-col min-w-0 w-full h-full`}>
+        <div className="flex flex-col min-w-0 w-5/12 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
           {/* Sticky Tab Bar */}
           <div className="sticky top-0 z-10 p-2 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
             <nav className="flex items-center gap-2">
@@ -405,13 +444,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
                     </span>
                   )}
               </button>
-               {mode === 'review' && (
-                 <button 
-                    onClick={() => handleTabChange('outlines')} 
-                    className={`relative flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'outlines' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                      Outlines
-                  </button>
-               )}
+              {/* FIX: Removed dead code. The 'outlines' tab and its associated logic should only appear in 'review' mode, which is handled by the !isInteractive block. */}
             </nav>
           </div>
           
@@ -419,7 +452,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
           {activeTab === 'task1' && renderChatInterface()}
           {activeTab === 'task2' && renderChatInterface()}
           {activeTab === 'vocabulary' && renderVocabularyInterface()}
-          {activeTab === 'outlines' && mode === 'review' && renderOutlinesInterface()}
+          {/* FIX: Removed dead code. The 'outlines' tab and its associated logic should only appear in 'review' mode, which is handled by the !isInteractive block. */}
 
         </div>
       </div>

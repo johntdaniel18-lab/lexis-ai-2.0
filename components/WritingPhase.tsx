@@ -91,8 +91,9 @@ const WritingPhase: React.FC<WritingPhaseProps> = ({ test, onSubmit, durationInS
   }, []);
 
   const handleSubmit = () => {
-    // CRITICAL FIX: Do NOT remove the autosave here.
-    // The parent (TestScreen) will remove it only AFTER a successful API response.
+    // FIX: Removed localStorage.removeItem(autoSaveKey) from here.
+    // Cleanup is now handled in TestScreen.tsx ONLY after a successful API response.
+    // This prevents data loss if the API call fails.
     const finalEssay1 = practiceMode === 'task2' ? '' : task1Essay;
     const finalEssay2 = practiceMode === 'task1' ? '' : task2Essay;
     onSubmit(finalEssay1, finalEssay2);
@@ -177,7 +178,7 @@ const WritingPhase: React.FC<WritingPhaseProps> = ({ test, onSubmit, durationInS
   return (
     <div className="bg-white rounded-lg shadow-lg border border-slate-200 flex flex-col h-full relative">
       {imageModalUrl && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setImageModalUrl(null)} role="dialog" aria-modal="true" aria-label="Full-size image view">
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setImageModalUrl(null)} role="dialog" aria-modal="true" aria-label="Full-size image view" style={{ zIndex: 9999 }}>
           <img src={imageModalUrl} alt="Task diagram full size" className="max-w-[95vw] max-h-[95vh] object-contain rounded-lg shadow-2xl cursor-default" onClick={(e) => e.stopPropagation()} />
           <button className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors text-5xl font-light" onClick={() => setImageModalUrl(null)} aria-label="Close image view">&times;</button>
         </div>

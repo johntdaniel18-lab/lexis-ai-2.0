@@ -1,5 +1,4 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import Logo from './icons/Logo';
 import AdminKeyModal from './AdminKeyModal';
 import Spinner from './common/Spinner';
@@ -16,10 +15,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Use a ref to prevent double-submission race conditions immediately, 
-  // without waiting for React state re-renders.
-  const isSubmitting = useRef(false);
 
   const handleAdminLoginClick = () => {
     setIsAdminModalOpen(true);
@@ -36,18 +31,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Immediate synchronous check to prevent double clicks
-    if (isSubmitting.current) return;
-    isSubmitting.current = true;
-
     setError(null);
     setIsLoading(true);
 
     if (!apiKey.trim()) {
         setError("Please enter your Gemini API Key.");
         setIsLoading(false);
-        isSubmitting.current = false;
         return;
     }
 
@@ -79,7 +68,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         setError(msg);
     } finally {
         setIsLoading(false);
-        isSubmitting.current = false; // Release the lock
     }
   };
 

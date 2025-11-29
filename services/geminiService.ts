@@ -385,7 +385,8 @@ export const getEssayFeedback = async (
     type: Type.OBJECT,
     properties: {
       id: { type: Type.STRING, description: 'A unique ID for this improvement, e.g., "imp-1"' },
-      taskNumber: { type: Type.INTEGER, enum: [1, 2] },
+      // FIX: Removed invalid enum constraint on INTEGER type.
+      taskNumber: { type: Type.INTEGER }, 
       originalText: { type: Type.STRING },
       improvedText: { type: Type.STRING },
       explanation: { type: Type.STRING },

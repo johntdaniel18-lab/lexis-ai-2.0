@@ -96,7 +96,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
       } else if (errorMessage.includes('429') || errorMessage.includes('resource_exhausted')) {
           errorSetter("The AI is currently busy and could not provide feedback (API Rate Limit Reached). Don't worry, your essays have been saved. Please wait a moment and try submitting again.");
       } else {
-          errorSetter("An unexpected error occurred while communicating with the AI. Please try again.");
+          errorSetter("An unexpected error occurred while communicating with the AI. Your essays have been saved locally. Please try again.");
       }
   };
 

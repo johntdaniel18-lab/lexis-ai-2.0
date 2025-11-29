@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { StaticDrillModule, DrillGroup, DrillQuestion } from '../types';
 import Button from './common/Button';
@@ -7,7 +8,7 @@ import MarkdownRenderer from './common/MarkdownRenderer';
 interface StaticDrillPlayerProps {
   module: StaticDrillModule;
   onExit: () => void;
-  onComplete: () => void;
+  onComplete: (result: { score: number, totalQuestions: number }) => void;
 }
 
 const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, onComplete }) => {
@@ -87,6 +88,11 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
       setScore(0);
       setUserAnswers({});
       setIsSummary(false);
+  };
+
+  const handleFinishAndSave = () => {
+    onComplete({ score, totalQuestions });
+    // The App component will handle navigation away from the player
   };
 
   // --- RENDERERS FOR QUESTION TYPES ---
@@ -254,7 +260,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                 <p className="text-slate-500 mb-8">Correct Answers</p>
                 
                 <div className="space-y-3">
-                    <Button variant="primary" className="w-full py-3" onClick={onComplete}>Return to Library</Button>
+                    <Button variant="primary" className="w-full py-3" onClick={handleFinishAndSave}>Save & Exit</Button>
                     <Button variant="secondary" className="w-full py-3" onClick={handleRetry}>Retry Drill</Button>
                 </div>
             </div>

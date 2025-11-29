@@ -84,6 +84,17 @@ export interface CompletedTest {
   chatHistoryTask2: ChatMessage[];
 }
 
+export interface CompletedDrill {
+  id: string; // Unique ID for this attempt
+  drillId: string; // ID of the StaticDrillModule
+  drillTitle: string;
+  completionDate: string; // ISO string
+  score: number;
+  totalQuestions: number;
+  category: StaticDrillModule['category'];
+  difficulty: StaticDrillModule['difficulty'];
+}
+
 export type PracticeMode = 'task1' | 'task2' | 'mock';
 
 export enum TestPhase {

@@ -4,7 +4,7 @@ import DashboardScreen from './components/DashboardScreen';
 import TestScreen from './components/TestScreen';
 import AdminDashboardScreen from './components/admin/AdminDashboardScreen';
 import FeedbackViewer from './components/FeedbackViewer';
-import { IeltsTest, CompletedTest, DrillCriterion, PracticeMode, StaticDrillModule } from './types';
+import { IeltsTest, CompletedTest, DrillCriterion, PracticeMode, StaticDrillModule, CompletedDrill } from './types';
 import Button from './components/common/Button';
 import Logo from './components/icons/Logo';
 import { validateApiKey } from './services/geminiService';
@@ -27,7 +27,10 @@ import {
   updateExistingTest,
   logoutUser,
   deleteTestResult,
-  fetchDrills
+  fetchDrills,
+  fetchDrillHistory,
+  saveDrillResult,
+  deleteDrillResult
 } from './services/firebase';
 
 const API_KEY_STORAGE_KEY = 'lexis-ai-api-key';
@@ -47,6 +50,7 @@ const App: React.FC = () => {
   const [tests, setTests] = useState<IeltsTest[]>([]);
   const [completedTests, setCompletedTests] = useState<CompletedTest[]>([]);
   const [drills, setDrills] = useState<StaticDrillModule[]>([]);
+  const [completedDrills, setCompletedDrills] = useState<CompletedDrill[]>([]);
 
   // Navigation State
   const [selectedTest, setSelectedTest] = useState<IeltsTest | null>(null);
@@ -61,6 +65,8 @@ const App: React.FC = () => {
   // Deletion State
   const [testToDelete, setTestToDelete] = useState<CompletedTest | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [drillToDelete, setDrillToDelete] = useState<CompletedDrill | null>(null);
+  const [isDeletingDrill, setIsDeletingDrill] = useState(false);
 
   // 1. Listen for Auth Changes
   useEffect(() => {
@@ -71,14 +77,16 @@ const App: React.FC = () => {
         
         // Parallel data fetching
         try {
-          const [loadedTests, loadedHistory, loadedDrills] = await Promise.all([
+          const [loadedTests, loadedHistory, loadedDrills, loadedDrillHistory] = await Promise.all([
             fetchTests(),
             fetchUserHistory(user.uid),
-            fetchDrills()
+            fetchDrills(),
+            fetchDrillHistory(user.uid),
           ]);
           setTests(loadedTests);
           setCompletedTests(loadedHistory);
           setDrills(loadedDrills);
+          setCompletedDrills(loadedDrillHistory);
           
           // If we haven't explicitly set a role yet (e.g. fresh reload), default to student
           // The LoginScreen handles the explicit 'admin' flow.
@@ -89,6 +97,7 @@ const App: React.FC = () => {
       } else {
         setCurrentUser(null);
         setCompletedTests([]);
+        setCompletedDrills([]);
         
         // FIX: Only clear userRole if it was 'student'. 
         // If 'admin', we preserve the session since admins don't use Firebase Auth.
@@ -173,6 +182,7 @@ const App: React.FC = () => {
     setActiveStaticDrill(null);
     setCurrentView('dashboard');
     setTestToDelete(null); // Clear any pending deletions
+    setDrillToDelete(null);
     sessionStorage.removeItem(API_KEY_STORAGE_KEY);
     sessionStorage.removeItem(API_KEY_VALIDATED_KEY);
   }, []);
@@ -250,6 +260,33 @@ const App: React.FC = () => {
   const handleStartStaticDrill = useCallback((module: StaticDrillModule) => {
     setActiveStaticDrill(module);
   }, []);
+  
+  const handleCompleteDrill = useCallback(async (module: StaticDrillModule, result: { score: number, totalQuestions: number }) => {
+    if (!currentUser) return;
+    
+    const newCompletedDrill: CompletedDrill = {
+      id: `drill-completed-${Date.now()}`,
+      drillId: module.id,
+      drillTitle: module.title,
+      completionDate: new Date().toISOString(),
+      score: result.score,
+      totalQuestions: result.totalQuestions,
+      category: module.category,
+      difficulty: module.difficulty
+    };
+
+    // Optimistic update
+    setCompletedDrills(prev => [newCompletedDrill, ...prev]);
+    setActiveStaticDrill(null); // Exit the player
+
+    // Save to cloud
+    try {
+        await saveDrillResult(currentUser.uid, newCompletedDrill);
+    } catch (e) {
+        console.error("Failed to save drill result", e);
+    }
+  }, [currentUser]);
+
 
   const handleBrowseCategory = useCallback((category: string) => {
     setLearnCategoryFilter(category);
@@ -311,6 +348,28 @@ const App: React.FC = () => {
       }
   }, [currentUser, testToDelete]);
 
+  const handleInitiateDeleteDrill = useCallback((drill: CompletedDrill) => {
+    setDrillToDelete(drill);
+  }, []);
+
+  const handleCancelDeleteDrill = useCallback(() => {
+    setDrillToDelete(null);
+  }, []);
+
+  const handleConfirmDeleteDrill = useCallback(async () => {
+    if (!currentUser || !drillToDelete) return;
+    setIsDeletingDrill(true);
+    try {
+        await deleteDrillResult(currentUser.uid, drillToDelete.id);
+        setCompletedDrills(prev => prev.filter(d => d.id !== drillToDelete.id));
+        setDrillToDelete(null);
+    } catch (e) {
+        console.error("Failed to delete drill history", e);
+    } finally {
+        setIsDeletingDrill(false);
+    }
+  }, [currentUser, drillToDelete]);
+
 
   if (appLoading) {
     return (
@@ -341,7 +400,7 @@ const App: React.FC = () => {
         return <StaticDrillPlayer 
           module={activeStaticDrill} 
           onExit={() => setActiveStaticDrill(null)}
-          onComplete={() => setActiveStaticDrill(null)}
+          onComplete={(result) => handleCompleteDrill(activeStaticDrill, result)}
         />;
       }
       if (activeDrill) {
@@ -388,12 +447,14 @@ const App: React.FC = () => {
       if (currentView === 'progress') {
           return <ProgressHubScreen 
             completedTests={completedTests} 
+            completedDrills={completedDrills}
             tests={tests}
             drills={drills}
             onViewCompletedTest={handleViewCompletedTest}
             onStartStaticDrill={handleStartStaticDrill}
             onBrowseCategory={handleBrowseCategory}
             onInitiateDeleteTest={handleInitiateDeleteTest}
+            onInitiateDeleteDrill={handleInitiateDeleteDrill}
           />
       }
       return <DashboardScreen tests={tests} onSelectTest={handleSelectTest} />;
@@ -456,6 +517,20 @@ const App: React.FC = () => {
             isConfirming={isDeleting}
         >
             <p>You are about to permanently delete your history for <strong>{testToDelete.testTitle}</strong>. This action cannot be undone. All associated data will be lost.</p>
+        </ConfirmationModal>
+      )}
+
+      {drillToDelete && (
+        <ConfirmationModal
+            isOpen={!!drillToDelete}
+            onClose={handleCancelDeleteDrill}
+            onConfirm={handleConfirmDeleteDrill}
+            title="Delete Drill History?"
+            confirmText="Delete Permanently"
+            confirmVariant="danger"
+            isConfirming={isDeletingDrill}
+        >
+            <p>You are about to permanently delete your history for <strong>{drillToDelete.drillTitle}</strong>. This action cannot be undone.</p>
         </ConfirmationModal>
       )}
     </div>

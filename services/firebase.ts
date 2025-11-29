@@ -22,7 +22,7 @@ import {
   writeBatch,
   getDoc
 } from 'firebase/firestore';
-import { IeltsTest, CompletedTest, StaticDrillModule } from '../types';
+import { IeltsTest, CompletedTest, StaticDrillModule, CompletedDrill } from '../types';
 import { IELTS_TESTS, TESTS_VERSION } from '../constants';
 import { STATIC_DRILLS } from '../data/staticDrills';
 
@@ -202,5 +202,27 @@ export const saveTestResult = async (userId: string, result: CompletedTest) => {
 
 export const deleteTestResult = async (userId: string, testId: string) => {
   const docRef = doc(db, 'users', userId, 'completed_tests', testId);
+  await deleteDoc(docRef);
+};
+
+
+// 4. User Drill History (Private per user)
+export const fetchDrillHistory = async (userId: string): Promise<CompletedDrill[]> => {
+  const historyRef = collection(db, 'users', userId, 'completed_drills');
+  const q = query(historyRef); 
+  
+  const snapshot = await getDocs(q);
+  const history = snapshot.docs.map(doc => doc.data() as CompletedDrill);
+  
+  return history.sort((a, b) => new Date(b.completionDate).getTime() - new Date(a.completionDate).getTime());
+};
+
+export const saveDrillResult = async (userId: string, result: CompletedDrill) => {
+  const historyRef = collection(db, 'users', userId, 'completed_drills');
+  await setDoc(doc(historyRef, result.id), result);
+};
+
+export const deleteDrillResult = async (userId: string, drillResultId: string) => {
+  const docRef = doc(db, 'users', userId, 'completed_drills', drillResultId);
   await deleteDoc(docRef);
 };

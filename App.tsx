@@ -4,7 +4,7 @@ import DashboardScreen from './components/DashboardScreen';
 import TestScreen from './components/TestScreen';
 import AdminDashboardScreen from './components/admin/AdminDashboardScreen';
 import FeedbackViewer from './components/FeedbackViewer';
-import { IeltsTest, CompletedTest, DrillCriterion, PracticeMode } from './types';
+import { IeltsTest, CompletedTest, DrillCriterion, PracticeMode, StaticDrillModule } from './types';
 import Button from './components/common/Button';
 import Logo from './components/icons/Logo';
 import { validateApiKey } from './services/geminiService';
@@ -14,6 +14,7 @@ import LearnScreen from './components/LearnScreen';
 import ModeSelectionScreen from './components/ModeSelectionScreen';
 import Spinner from './components/common/Spinner';
 import ConfirmationModal from './components/common/ConfirmationModal';
+import StaticDrillPlayer from './components/StaticDrillPlayer';
 
 // Firebase imports
 import { auth } from './services/firebase';
@@ -25,7 +26,8 @@ import {
   saveNewTest, 
   updateExistingTest,
   logoutUser,
-  deleteTestResult
+  deleteTestResult,
+  fetchDrills
 } from './services/firebase';
 
 const API_KEY_STORAGE_KEY = 'lexis-ai-api-key';
@@ -44,6 +46,7 @@ const App: React.FC = () => {
   // Data State
   const [tests, setTests] = useState<IeltsTest[]>([]);
   const [completedTests, setCompletedTests] = useState<CompletedTest[]>([]);
+  const [drills, setDrills] = useState<StaticDrillModule[]>([]);
 
   // Navigation State
   const [selectedTest, setSelectedTest] = useState<IeltsTest | null>(null);
@@ -51,6 +54,9 @@ const App: React.FC = () => {
   const [viewingCompletedTest, setViewingCompletedTest] = useState<CompletedTest | null>(null);
   const [completedTestForRewrite, setCompletedTestForRewrite] = useState<CompletedTest | null>(null);
   const [activeDrill, setActiveDrill] = useState<{criterion: DrillCriterion; topic: string} | null>(null);
+  const [activeStaticDrill, setActiveStaticDrill] = useState<StaticDrillModule | null>(null);
+  const [learnCategoryFilter, setLearnCategoryFilter] = useState<string | null>(null);
+
 
   // Deletion State
   const [testToDelete, setTestToDelete] = useState<CompletedTest | null>(null);
@@ -65,12 +71,14 @@ const App: React.FC = () => {
         
         // Parallel data fetching
         try {
-          const [loadedTests, loadedHistory] = await Promise.all([
+          const [loadedTests, loadedHistory, loadedDrills] = await Promise.all([
             fetchTests(),
-            fetchUserHistory(user.uid)
+            fetchUserHistory(user.uid),
+            fetchDrills()
           ]);
           setTests(loadedTests);
           setCompletedTests(loadedHistory);
+          setDrills(loadedDrills);
           
           // If we haven't explicitly set a role yet (e.g. fresh reload), default to student
           // The LoginScreen handles the explicit 'admin' flow.
@@ -162,6 +170,7 @@ const App: React.FC = () => {
     setViewingCompletedTest(null);
     setCompletedTestForRewrite(null);
     setActiveDrill(null);
+    setActiveStaticDrill(null);
     setCurrentView('dashboard');
     setTestToDelete(null); // Clear any pending deletions
     sessionStorage.removeItem(API_KEY_STORAGE_KEY);
@@ -189,6 +198,7 @@ const App: React.FC = () => {
     setViewingCompletedTest(null);
     setCompletedTestForRewrite(null); 
     setActiveDrill(null);
+    setActiveStaticDrill(null);
     setCurrentView('dashboard'); 
   }, []);
 
@@ -237,18 +247,14 @@ const App: React.FC = () => {
     }
   }, [completedTests, tests]);
   
-  const handleStartFreestyleDrill = useCallback((criterion: DrillCriterion) => {
-    // 1. Pick a random test
-    if (tests.length === 0) return;
-    const randomTest = tests[Math.floor(Math.random() * tests.length)];
-    // 2. Pick a random, valid topic
-    const validTopics = randomTest.tags?.filter(tag => 
-        !['graph', 'chart', 'diagram', 'table'].some(chartType => tag.toLowerCase().includes(chartType))
-    ) || [];
-    const topic = validTopics[Math.floor(Math.random() * validTopics.length)] || 'general topics'; 
-    // 3. Set the active drill
-    setActiveDrill({ criterion, topic });
-  }, [tests]);
+  const handleStartStaticDrill = useCallback((module: StaticDrillModule) => {
+    setActiveStaticDrill(module);
+  }, []);
+
+  const handleBrowseCategory = useCallback((category: string) => {
+    setLearnCategoryFilter(category);
+    setCurrentView('learn');
+  }, []);
 
   const handleAddNewTest = useCallback(async (newTest: Omit<IeltsTest, 'id'>) => {
     const nextId = tests.length > 0 ? Math.max(...tests.map(t => t.id)) + 1 : 1;
@@ -331,6 +337,13 @@ const App: React.FC = () => {
       return <AdminDashboardScreen tests={tests} onAddNewTest={handleAddNewTest} onUpdateTest={handleUpdateTest} />;
     }
     if (userRole === 'student') {
+      if (activeStaticDrill) {
+        return <StaticDrillPlayer 
+          module={activeStaticDrill} 
+          onExit={() => setActiveStaticDrill(null)}
+          onComplete={() => setActiveStaticDrill(null)}
+        />;
+      }
       if (activeDrill) {
         return <DrillScreen 
             criterion={activeDrill.criterion} 
@@ -365,13 +378,21 @@ const App: React.FC = () => {
         />;
       }
        if (currentView === 'learn') {
-          return <LearnScreen onStartFreestyleDrill={handleStartFreestyleDrill} />;
+          return <LearnScreen 
+            drills={drills} 
+            onStartDrill={handleStartStaticDrill} 
+            initialFilter={learnCategoryFilter}
+            onFilterApplied={() => setLearnCategoryFilter(null)}
+          />;
       }
       if (currentView === 'progress') {
           return <ProgressHubScreen 
             completedTests={completedTests} 
+            tests={tests}
+            drills={drills}
             onViewCompletedTest={handleViewCompletedTest}
-            onStartDrill={handleStartDrill}
+            onStartStaticDrill={handleStartStaticDrill}
+            onBrowseCategory={handleBrowseCategory}
             onInitiateDeleteTest={handleInitiateDeleteTest}
           />
       }
@@ -380,7 +401,7 @@ const App: React.FC = () => {
     return null;
   };
   
-  const isWorkspaceView = userRole === 'student' && (selectedTest || viewingCompletedTest || activeDrill);
+  const isWorkspaceView = userRole === 'student' && (selectedTest || viewingCompletedTest || activeDrill || activeStaticDrill);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans antialiased flex flex-col">

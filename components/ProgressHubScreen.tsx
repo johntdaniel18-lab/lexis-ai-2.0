@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CompletedTest, DrillCriterion } from '../types';
+import { CompletedTest, StaticDrillModule, IeltsTest } from '../types';
 import PersonalizedDrillWidget from './PersonalizedDrillWidget';
 import ScoreTrendChart from './common/ScoreTrendChart';
 import Button from './common/Button';
@@ -7,12 +7,23 @@ import TrashIcon from './icons/TrashIcon';
 
 interface ProgressHubScreenProps {
   completedTests: CompletedTest[];
+  tests: IeltsTest[];
+  drills: StaticDrillModule[];
   onViewCompletedTest: (test: CompletedTest) => void;
-  onStartDrill: (criterion: DrillCriterion) => void;
+  onStartStaticDrill: (module: StaticDrillModule) => void;
+  onBrowseCategory: (category: string) => void;
   onInitiateDeleteTest: (test: CompletedTest) => void;
 }
 
-const ProgressHubScreen: React.FC<ProgressHubScreenProps> = ({ completedTests, onViewCompletedTest, onStartDrill, onInitiateDeleteTest }) => {
+const ProgressHubScreen: React.FC<ProgressHubScreenProps> = ({ 
+  completedTests, 
+  tests,
+  drills,
+  onViewCompletedTest, 
+  onStartStaticDrill, 
+  onBrowseCategory,
+  onInitiateDeleteTest 
+}) => {
   const uniqueVocabularyCount = useMemo(() => {
     const allWords = completedTests.flatMap(test => test.vocabulary.map(v => v.word.toLowerCase()));
     return new Set(allWords).size;
@@ -61,7 +72,13 @@ const ProgressHubScreen: React.FC<ProgressHubScreenProps> = ({ completedTests, o
 
 
       {completedTests.length >= 3 && (
-        <PersonalizedDrillWidget completedTests={completedTests} onStartDrill={onStartDrill} />
+        <PersonalizedDrillWidget 
+            completedTests={completedTests} 
+            tests={tests}
+            drills={drills} 
+            onStartStaticDrill={onStartStaticDrill}
+            onBrowseCategory={onBrowseCategory}
+        />
       )}
 
       <div className="bg-white p-8 rounded-lg shadow-sm border border-slate-200">

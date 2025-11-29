@@ -1,9 +1,6 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { StaticDrillModule } from '../types';
-import StaticDrillPlayer from './StaticDrillPlayer';
 import Spinner from './common/Spinner';
-import { fetchDrills } from '../services/firebase';
 
 // Icons
 const BookOpenIcon = () => (
@@ -13,29 +10,27 @@ const BookOpenIcon = () => (
 );
 
 interface LearnScreenProps {
-    onStartFreestyleDrill?: (criterion: any) => void;
+    drills: StaticDrillModule[];
+    onStartDrill: (module: StaticDrillModule) => void;
+    initialFilter?: string | null;
+    onFilterApplied?: () => void;
 }
 
-const LearnScreen: React.FC<LearnScreenProps> = () => {
-  const [activeModule, setActiveModule] = useState<StaticDrillModule | null>(null);
+const LearnScreen: React.FC<LearnScreenProps> = ({ drills, onStartDrill, initialFilter, onFilterApplied }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [drills, setDrills] = useState<StaticDrillModule[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Still show loading on first render
 
   useEffect(() => {
-    const loadData = async () => {
-        setIsLoading(true);
-        try {
-            const data = await fetchDrills();
-            setDrills(data);
-        } catch (error) {
-            console.error("Error loading drills:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    loadData();
-  }, []);
+    if (initialFilter) {
+      setSelectedCategory(initialFilter);
+      if (onFilterApplied) onFilterApplied();
+    }
+  }, [initialFilter, onFilterApplied]);
+  
+  // Manage loading state based on prop
+  useEffect(() => {
+    setIsLoading(drills.length === 0);
+  }, [drills]);
 
   const categories = ['All', 'Grammar', 'Vocabulary', 'Coherence', 'Task Response'];
 
@@ -44,15 +39,6 @@ const LearnScreen: React.FC<LearnScreenProps> = () => {
     return drills.filter(drill => drill.category === selectedCategory);
   }, [selectedCategory, drills]);
 
-  if (activeModule) {
-    return (
-        <StaticDrillPlayer 
-            module={activeModule} 
-            onExit={() => setActiveModule(null)}
-            onComplete={() => setActiveModule(null)}
-        />
-    );
-  }
 
   if (isLoading) {
       return (
@@ -99,7 +85,7 @@ const LearnScreen: React.FC<LearnScreenProps> = () => {
             <div 
                 key={drill.id} 
                 className="group flex flex-col bg-white rounded-2xl shadow-sm hover:shadow-xl border border-slate-200 transition-all duration-300 transform hover:-translate-y-1 overflow-hidden cursor-pointer"
-                onClick={() => setActiveModule(drill)}
+                onClick={() => onStartDrill(drill)}
             >
                 <div className="h-32 bg-gradient-to-br from-slate-100 to-slate-200 relative p-6 flex flex-col justify-between">
                     <div className="flex justify-between items-start">

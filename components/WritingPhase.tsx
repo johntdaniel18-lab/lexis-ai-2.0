@@ -176,7 +176,7 @@ const WritingPhase: React.FC<WritingPhaseProps> = ({ test, onSubmit, durationInS
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg border border-slate-200 flex flex-col h-full relative">
+    <div className="bg-white rounded-lg shadow-md border border-slate-200 flex flex-col h-full relative">
       {imageModalUrl && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setImageModalUrl(null)} role="dialog" aria-modal="true" aria-label="Full-size image view" style={{ zIndex: 9999 }}>
           <img src={imageModalUrl} alt="Task diagram full size" className="max-w-[95vw] max-h-[95vh] object-contain rounded-lg shadow-2xl cursor-default" onClick={(e) => e.stopPropagation()} />
@@ -216,8 +216,8 @@ const WritingPhase: React.FC<WritingPhaseProps> = ({ test, onSubmit, durationInS
             </div>
         </div>
       )}
-      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
-        <div className="p-6 flex justify-between items-center">
+      <div className="flex-shrink-0">
+        <div className="p-6 flex justify-between items-center border-b border-slate-200">
           <div>
             <h3 className="text-xl font-extrabold text-slate-900">Step 2: Timed Writing Test</h3>
             <p className="mt-1 text-slate-500">You have {durationInSeconds / 60} minutes to complete this session.</p>

@@ -387,10 +387,10 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
       )}
       
       {/* Main Content Area: Two-panel layout */}
-      <div className="flex-grow flex flex-row gap-6 overflow-hidden">
+      <div className="flex-grow grid grid-cols-12 gap-6 overflow-hidden">
         
         {/* Left Panel (Task Details) */}
-        <div className="w-7/12 bg-white rounded-lg shadow-md border border-slate-200 p-6 overflow-y-auto">
+        <div className="col-span-7 bg-white rounded-lg shadow-md border border-slate-200 p-6 overflow-y-auto">
           <div className="space-y-6">
              {(activeTab === 'task1' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task1')) && tasksToPractice.includes('task1') && (
                <div>
@@ -420,7 +420,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
         </div>
 
         {/* Right Panel (Chat/Vocab/Outlines) */}
-        <div className="flex flex-col min-w-0 w-5/12 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
+        <div className="col-span-5 flex flex-col min-w-0 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
           {/* Sticky Tab Bar */}
           <div className="sticky top-0 z-10 p-2 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
             <nav className="flex items-center gap-2">

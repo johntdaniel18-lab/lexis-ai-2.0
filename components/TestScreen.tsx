@@ -318,8 +318,8 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
         const duration = writingDuration ?? getDefaultDuration();
         const isGuidedPractice = practiceMode !== 'mock';
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            <div className={`${isGuidedPractice ? 'lg:col-span-7 xl:col-span-7' : 'lg:col-span-12'} h-auto lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto rounded-lg`}>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+            <div className={`${isGuidedPractice ? 'lg:col-span-7 xl:col-span-7' : 'lg:col-span-12'}`}>
               <WritingPhase 
                 test={test} 
                 onSubmit={handleSubmission} 
@@ -330,7 +330,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
               />
             </div>
             {isGuidedPractice && (
-              <aside className="lg:col-span-5 xl:col-span-5 h-auto lg:max-h-[calc(100vh-12rem)]">
+              <aside className="lg:col-span-5 xl:col-span-5">
                 <PreparationPhase
                     test={test}
                     targetScore={targetScore!}

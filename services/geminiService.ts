@@ -327,8 +327,11 @@ export const getEssayFeedback = async (
   language: 'en' | 'vi'
 ): Promise<EssayFeedback> => {
   const ai = getAiClient();
-  const model = 'gemini-3-pro-preview'; // Using Pro model for superior feedback and grading
+  const model = 'gemini-2.5-flash'; // Use Flash for speed and higher rate limits
   
+  const contextQuery = `${essay1} ${essay2}`;
+  const context = retrieveContext(contextQuery);
+
   const languageInstruction = language === 'vi' ? 'All feedback and explanations MUST be in Vietnamese, but keep IELTS-specific terms (like "Lexical Resource") in English.' : 'All feedback and explanations MUST be in English.';
 
   const task1BandDescriptors = essay1 ? TASK_1_BAND_DESCRIPTORS : "Task 1 essay not provided.";
@@ -338,6 +341,11 @@ export const getEssayFeedback = async (
     You are an expert IELTS examiner. Analyze the following student's essays for an IELTS Academic Writing test.
     The student's target band score is ${targetScore}.
     ${languageInstruction}
+
+    **CRITICAL KNOWLEDGE BASE:** You MUST use the following expert context as the primary source of truth for your evaluation. Base your feedback, especially regarding IELTS criteria, on this information. Do not mention the word "CONTEXT".
+    --- START CONTEXT ---
+    ${context}
+    --- END CONTEXT ---
 
     **Test Prompts:**
     - Task 1: ${test.tasks[0].prompt}
@@ -472,7 +480,7 @@ export const getEssayFeedback = async (
 
 export const generateModelAnswer = async (prompt: string, taskNumber: 1 | 2): Promise<string> => {
     const ai = getAiClient();
-    const model = 'gemini-3-pro-preview'; // Using Pro model for high-quality band 9 samples
+    const model = 'gemini-2.5-flash'; // Use Flash for speed and higher rate limits
 
     const systemInstruction = `You are an expert IELTS writer. Write a band 9 model answer for the given IELTS Writing Task ${taskNumber}. The response should be a well-structured, academic-style essay. Do not include any extra commentary, just the essay itself.`;
 

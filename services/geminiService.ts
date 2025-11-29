@@ -1,3 +1,4 @@
+
 // FIX: Import GenerateContentResponse to correctly type API call results.
 import { GoogleGenAI, Chat, Type, Part, GenerateContentResponse } from "@google/genai";
 // FIX: Import CriterionScore to correctly type the getEssayFeedback placeholder.
@@ -266,7 +267,7 @@ export const getEssayOutlines = async (
   language: 'en' | 'vi'
 ): Promise<{ task1Outline?: string; task2Outline?: string }> => {
     const ai = getAiClient();
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3-pro-preview'; // Using Pro model for better outline reasoning
     const languageInstruction = language === 'vi' ? 'The entire outline MUST be in Vietnamese.' : 'The entire outline MUST be in English.';
 
     const createPrompt = (taskNum: 1 | 2, history: ChatMessage[]) => {
@@ -325,7 +326,7 @@ export const getEssayFeedback = async (
   language: 'en' | 'vi'
 ): Promise<EssayFeedback> => {
   const ai = getAiClient();
-  const model = 'gemini-2.5-flash';
+  const model = 'gemini-3-pro-preview'; // Using Pro model for superior feedback and grading
   
   const languageInstruction = language === 'vi' ? 'All feedback and explanations MUST be in Vietnamese, but keep IELTS-specific terms (like "Lexical Resource") in English.' : 'All feedback and explanations MUST be in English.';
 
@@ -470,7 +471,7 @@ export const getEssayFeedback = async (
 
 export const generateModelAnswer = async (prompt: string, taskNumber: 1 | 2): Promise<string> => {
     const ai = getAiClient();
-    const model = 'gemini-2.5-flash';
+    const model = 'gemini-3-pro-preview'; // Using Pro model for high-quality band 9 samples
 
     const systemInstruction = `You are an expert IELTS writer. Write a band 9 model answer for the given IELTS Writing Task ${taskNumber}. The response should be a well-structured, academic-style essay. Do not include any extra commentary, just the essay itself.`;
 

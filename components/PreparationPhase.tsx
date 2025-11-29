@@ -346,7 +346,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
       )}
       
       {/* Main Content Area: Two-panel layout */}
-      <div className={`flex-grow flex flex-row gap-6 overflow-hidden ${isInteractive ? '' : ''}`}>
+      <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-slate-200 flex flex-col h-full">
         
         {/* Left Panel (Task Details) */}
         {mode === 'interactive' && (
@@ -381,7 +381,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
         )}
 
         {/* Right Panel (Chat/Vocab/Outlines) */}
-        <div className={`flex flex-col min-w-0 ${mode === 'interactive' ? 'w-5/12 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden' : 'w-full'}`}>
+        <div className={`flex flex-col min-w-0 w-full h-full`}>
           {/* Sticky Tab Bar */}
           <div className="sticky top-0 z-10 p-2 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
             <nav className="flex items-center gap-2">

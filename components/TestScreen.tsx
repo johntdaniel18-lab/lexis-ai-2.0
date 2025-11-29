@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { IeltsTest, TestPhase, CompletedTest, VocabularyItem, ChatMessage, PracticeMode, EssayFeedback } from '../types';
+import { IeltsTest, TestPhase, EssayFeedback, CompletedTest, VocabularyItem, ChatMessage, PracticeMode } from '../types';
 import TargetScoreSelectionPhase from './TargetScoreSelectionPhase';
 import PreparationPhase from './PreparationPhase';
 import WritingPhase from './WritingPhase';
@@ -330,7 +330,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
               />
             </div>
             {isGuidedPractice && (
-              <aside className="lg:col-span-5 xl:col-span-5">
+              <aside className="lg:col-span-5 xl:col-span-5 h-auto lg:max-h-[calc(100vh-12rem)] rounded-lg overflow-hidden">
                 <PreparationPhase
                     test={test}
                     targetScore={targetScore!}

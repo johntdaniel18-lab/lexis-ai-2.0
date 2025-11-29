@@ -1,5 +1,3 @@
-
-
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -200,4 +198,9 @@ export const saveTestResult = async (userId: string, result: CompletedTest) => {
   const historyRef = collection(db, 'users', userId, 'completed_tests');
   // Use the result ID (timestamp based) as the doc ID
   await setDoc(doc(historyRef, result.id), result);
+};
+
+export const deleteTestResult = async (userId: string, testId: string) => {
+  const docRef = doc(db, 'users', userId, 'completed_tests', testId);
+  await deleteDoc(docRef);
 };

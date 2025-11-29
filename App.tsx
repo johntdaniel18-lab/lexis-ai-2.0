@@ -13,6 +13,7 @@ import ProgressHubScreen from './components/ProgressHubScreen';
 import LearnScreen from './components/LearnScreen';
 import ModeSelectionScreen from './components/ModeSelectionScreen';
 import Spinner from './components/common/Spinner';
+import ConfirmationModal from './components/common/ConfirmationModal';
 
 // Firebase imports
 import { auth } from './services/firebase';
@@ -23,7 +24,8 @@ import {
   saveTestResult, 
   saveNewTest, 
   updateExistingTest,
-  logoutUser
+  logoutUser,
+  deleteTestResult
 } from './services/firebase';
 
 const API_KEY_STORAGE_KEY = 'lexis-ai-api-key';
@@ -49,6 +51,10 @@ const App: React.FC = () => {
   const [viewingCompletedTest, setViewingCompletedTest] = useState<CompletedTest | null>(null);
   const [completedTestForRewrite, setCompletedTestForRewrite] = useState<CompletedTest | null>(null);
   const [activeDrill, setActiveDrill] = useState<{criterion: DrillCriterion; topic: string} | null>(null);
+
+  // Deletion State
+  const [testToDelete, setTestToDelete] = useState<CompletedTest | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // 1. Listen for Auth Changes
   useEffect(() => {
@@ -157,6 +163,7 @@ const App: React.FC = () => {
     setCompletedTestForRewrite(null);
     setActiveDrill(null);
     setCurrentView('dashboard');
+    setTestToDelete(null); // Clear any pending deletions
     sessionStorage.removeItem(API_KEY_STORAGE_KEY);
     sessionStorage.removeItem(API_KEY_VALIDATED_KEY);
   }, []);
@@ -243,7 +250,6 @@ const App: React.FC = () => {
     setActiveDrill({ criterion, topic });
   }, [tests]);
 
-
   const handleAddNewTest = useCallback(async (newTest: Omit<IeltsTest, 'id'>) => {
     const nextId = tests.length > 0 ? Math.max(...tests.map(t => t.id)) + 1 : 1;
     const testWithId = { ...newTest, id: nextId };
@@ -270,6 +276,35 @@ const App: React.FC = () => {
       console.error("Failed to update test", e);
     }
   }, []);
+
+  // --- Deletion Handlers ---
+  const handleInitiateDeleteTest = useCallback((test: CompletedTest) => {
+    setTestToDelete(test);
+  }, []);
+
+  const handleCancelDelete = useCallback(() => {
+      setTestToDelete(null);
+  }, []);
+
+  const handleConfirmDeleteTest = useCallback(async () => {
+      if (!currentUser || !testToDelete) return;
+
+      setIsDeleting(true);
+      try {
+          // Backend-first deletion for safety
+          await deleteTestResult(currentUser.uid, testToDelete.id);
+          // Local update on success
+          setCompletedTests(prev => prev.filter(t => t.id !== testToDelete.id));
+          setTestToDelete(null);
+      } catch (e) {
+          console.error("Failed to delete test history", e);
+          // TODO: Show an error toast to the user
+          setTestToDelete(null); // Close modal even on error for better UX
+      } finally {
+          setIsDeleting(false);
+      }
+  }, [currentUser, testToDelete]);
+
 
   if (appLoading) {
     return (
@@ -337,6 +372,7 @@ const App: React.FC = () => {
             completedTests={completedTests} 
             onViewCompletedTest={handleViewCompletedTest}
             onStartDrill={handleStartDrill}
+            onInitiateDeleteTest={handleInitiateDeleteTest}
           />
       }
       return <DashboardScreen tests={tests} onSelectTest={handleSelectTest} />;
@@ -387,6 +423,20 @@ const App: React.FC = () => {
           {renderContent()}
         </div>
       </main>
+
+      {testToDelete && (
+        <ConfirmationModal
+            isOpen={!!testToDelete}
+            onClose={handleCancelDelete}
+            onConfirm={handleConfirmDeleteTest}
+            title="Delete Test History?"
+            confirmText="Delete Permanently"
+            confirmVariant="danger"
+            isConfirming={isDeleting}
+        >
+            <p>You are about to permanently delete your history for <strong>{testToDelete.testTitle}</strong>. This action cannot be undone. All associated data will be lost.</p>
+        </ConfirmationModal>
+      )}
     </div>
   );
 };

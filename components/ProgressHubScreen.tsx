@@ -3,14 +3,16 @@ import { CompletedTest, DrillCriterion } from '../types';
 import PersonalizedDrillWidget from './PersonalizedDrillWidget';
 import ScoreTrendChart from './common/ScoreTrendChart';
 import Button from './common/Button';
+import TrashIcon from './icons/TrashIcon';
 
 interface ProgressHubScreenProps {
   completedTests: CompletedTest[];
   onViewCompletedTest: (test: CompletedTest) => void;
   onStartDrill: (criterion: DrillCriterion) => void;
+  onInitiateDeleteTest: (test: CompletedTest) => void;
 }
 
-const ProgressHubScreen: React.FC<ProgressHubScreenProps> = ({ completedTests, onViewCompletedTest, onStartDrill }) => {
+const ProgressHubScreen: React.FC<ProgressHubScreenProps> = ({ completedTests, onViewCompletedTest, onStartDrill, onInitiateDeleteTest }) => {
   const uniqueVocabularyCount = useMemo(() => {
     const allWords = completedTests.flatMap(test => test.vocabulary.map(v => v.word.toLowerCase()));
     return new Set(allWords).size;
@@ -62,7 +64,7 @@ const ProgressHubScreen: React.FC<ProgressHubScreenProps> = ({ completedTests, o
         <PersonalizedDrillWidget completedTests={completedTests} onStartDrill={onStartDrill} />
       )}
 
-      <div>
+      <div className="bg-white p-8 rounded-lg shadow-sm border border-slate-200">
         <div className="text-center">
           <h2 className="text-3xl font-extrabold text-slate-900 sm:text-4xl">
             Your Test History
@@ -71,20 +73,32 @@ const ProgressHubScreen: React.FC<ProgressHubScreenProps> = ({ completedTests, o
             Review your past performance and track your progress.
           </p>
         </div>
-        <div className="mt-12 max-w-lg mx-auto grid gap-8 lg:grid-cols-2 lg:max-w-none">
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {completedTests.slice().reverse().map((completed) => (
             <div key={completed.id} className="flex flex-col rounded-lg shadow-md overflow-hidden border border-slate-200 bg-white">
               <div className="p-6 flex-grow flex flex-col justify-between">
                 <div>
-                  <div className="flex justify-between items-start">
-                    <h3 className="text-xl font-semibold text-slate-900">{completed.testTitle}</h3>
-                    <span className="flex-shrink-0 ml-4 text-sm font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
-                      {completed.feedback.overallScore.toFixed(1)}
-                    </span>
+                  <div className="flex justify-between items-start mb-1">
+                    <div>
+                      <h3 className="text-xl font-semibold text-slate-900">{completed.testTitle}</h3>
+                       <p className="mt-1 text-sm text-slate-400">
+                        Completed on: {new Date(completed.completionDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                        <span className="text-sm font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-md">
+                          {completed.feedback.overallScore.toFixed(1)}
+                        </span>
+                        <button
+                          onClick={() => onInitiateDeleteTest(completed)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-full transition-colors"
+                          aria-label={`Delete history for ${completed.testTitle}`}
+                        >
+                            <TrashIcon />
+                        </button>
+                    </div>
                   </div>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Completed on: {new Date(completed.completionDate).toLocaleDateString()}
-                  </p>
+                 
                 </div>
                 <div className="mt-6">
                   <Button

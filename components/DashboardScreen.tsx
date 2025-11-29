@@ -120,7 +120,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ tests, onSelectTest }
           )}
         </div>
 
-        <div className="mt-12 max-w-lg mx-auto grid gap-8 lg:grid-cols-2 lg:max-w-none">
+        <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredTests.map((test) => (
             <Card 
               key={test.id}
@@ -131,7 +131,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ tests, onSelectTest }
             />
           ))}
            {filteredTests.length === 0 && (
-            <p className="text-center text-slate-500 col-span-1 lg:col-span-2">
+            <p className="text-center text-slate-500 col-span-full">
                 No tests match your selected filters. Try removing a filter to broaden your search.
             </p>
            )}

@@ -138,7 +138,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                                           )
                                       })}
                                   </div>
-                                  {isWrong && (
+                                  {isWrong && q.explanation && (
                                       <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded">
                                           <span className="font-bold">Explanation:</span> {q.explanation}
                                       </div>
@@ -233,7 +233,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                                   onChange={(e) => handleInputChange(qId, e.target.value)}
                                   disabled={isSubmitted}
                                   className={`w-32 border-b-2 px-1 py-0.5 text-center focus:outline-none font-bold bg-transparent ${isSubmitted ? (isCorrect ? 'border-emerald-500 text-emerald-600' : 'border-red-500 text-red-600') : 'border-slate-400 focus:border-orange-500'}`}
-                                  placeholder={`(${idx})`}
+                                  placeholder={`(${idx+1})`}
                               />
                               {isWrong && (
                                   <div className="absolute top-full left-0 mt-1 bg-red-100 text-red-800 text-xs p-2 rounded shadow-lg z-10 w-48 whitespace-normal">
@@ -286,7 +286,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                         <div className="flex items-center gap-2 sm:gap-4">
                             {/* Mobile/Condensed Score */}
                             <div className="sm:hidden bg-emerald-100 text-emerald-800 font-extrabold px-3 py-1.5 rounded-full text-sm border border-emerald-200">
-                                {Math.round((score / totalQuestions) * 100)}%
+                                {totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0}%
                             </div>
 
                             {/* Desktop Detailed Score Card */}
@@ -303,7 +303,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                                 <div className="text-right">
                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Accuracy</p>
                                      <p className={`text-xl font-black leading-none mt-0.5 ${score === totalQuestions ? 'text-emerald-500' : 'text-orange-500'}`}>
-                                        {Math.round((score / totalQuestions) * 100)}%
+                                        {totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0}%
                                      </p>
                                 </div>
                             </div>
@@ -361,28 +361,26 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
             {/* RIGHT PANEL: Worksheet */}
             <div 
                 className={`
-                    flex-1 bg-slate-50 flex flex-col
+                    flex-1 bg-slate-50 overflow-y-auto
                     ${activeView === 'EXERCISES' ? 'block' : 'hidden'} 
                     lg:block lg:w-1/2
                 `}
+                 onScroll={handleScroll}
             >
-                {/* Scrollable Questions Area */}
-                <div className="flex-grow overflow-y-auto" onScroll={handleScroll}>
-                    <div className="p-6 lg:p-10 space-y-8 max-w-3xl mx-auto w-full pb-24">
-                        {(module.groups || []).map((group, idx) => (
-                            <div key={group.id} className="space-y-4">
-                                <div className="flex items-baseline justify-between border-b border-slate-200 pb-2">
-                                    <h3 className="text-lg font-extrabold text-slate-700">{group.title || `Question Group ${idx + 1}`}</h3>
-                                    <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded uppercase">{group.type.replace('_', ' ')}</span>
-                                </div>
-                                {group.instruction && <p className="text-sm text-slate-500 italic">{group.instruction}</p>}
-                                
-                                {group.type === 'MCQ' && renderMCQ(group)}
-                                {group.type === 'MATCHING' && renderMatching(group)}
-                                {group.type === 'NOTES_COMPLETION' && renderNotesCompletion(group)}
+                <div className="p-6 lg:p-10 space-y-8 max-w-3xl mx-auto w-full pb-24">
+                    {(module.groups || []).map((group, idx) => (
+                        <div key={group.id} className="space-y-4">
+                            <div className="flex items-baseline justify-between border-b border-slate-200 pb-2">
+                                <h3 className="text-lg font-extrabold text-slate-700">{group.title || `Question Group ${idx + 1}`}</h3>
+                                <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded uppercase">{group.type.replace('_', ' ')}</span>
                             </div>
-                        ))}
-                    </div>
+                            {group.instruction && <p className="text-sm text-slate-500 italic">{group.instruction}</p>}
+                            
+                            {group.type === 'MCQ' && renderMCQ(group)}
+                            {group.type === 'MATCHING' && renderMatching(group)}
+                            {group.type === 'NOTES_COMPLETION' && renderNotesCompletion(group)}
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>

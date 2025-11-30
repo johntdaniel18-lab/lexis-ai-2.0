@@ -2,9 +2,11 @@ import React from 'react';
 
 interface MarkdownRendererProps {
   text: string;
+  baseSize?: 'sm' | 'base';
 }
 
-const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
+const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text, baseSize = 'sm' }) => {
+  const sizeClass = baseSize === 'base' ? 'text-base' : 'text-sm';
   // FIX: Pre-process text to handle escaped newlines from AI JSON output.
   const formattedText = text.replace(/\\n/g, '\n');
 
@@ -34,7 +36,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
   const flushList = () => {
     if (listItems.length > 0) {
       elements.push(
-        <ul key={`ul-${elements.length}`} className="list-disc list-inside space-y-1 my-2 pl-4 text-sm">
+        <ul key={`ul-${elements.length}`} className={`list-disc list-inside space-y-1 my-2 pl-4 ${sizeClass}`}>
           {listItems.map((item, index) => (
             <li key={index}>{renderInlineMarkdown(item)}</li>
           ))}
@@ -74,7 +76,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ text }) => {
     // Paragraphs
     if (line.trim()) {
       elements.push(
-        <p key={i} className="my-1 text-sm whitespace-pre-wrap">
+        <p key={i} className={`my-1 ${sizeClass} whitespace-pre-wrap`}>
           {renderInlineMarkdown(line)}
         </p>
       );

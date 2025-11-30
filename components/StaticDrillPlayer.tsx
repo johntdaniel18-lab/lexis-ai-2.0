@@ -109,7 +109,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                           <div className="flex gap-3">
                               <span className="font-bold text-slate-400">{idx + 1}.</span>
                               <div className="flex-grow">
-                                  <p className="font-medium text-slate-800 mb-3">{q.text}</p>
+                                  <p className="font-medium text-slate-800 mb-3 whitespace-pre-wrap">{q.text}</p>
                                   <div className="space-y-2">
                                       {q.options?.map((opt, optIdx) => {
                                           const optValue = optIdx.toString();
@@ -160,7 +160,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                   <h5 className="text-xs font-bold text-slate-500 uppercase mb-2">Options</h5>
                   <div className="flex flex-wrap gap-4">
                       {group.sharedOptions?.map((opt, idx) => (
-                          <div key={idx} className="text-sm font-medium text-slate-700 bg-white px-3 py-1 rounded shadow-sm border border-slate-200">
+                          <div key={idx} className="font-medium text-slate-700 bg-white px-3 py-1 rounded shadow-sm border border-slate-200">
                               <span className="font-bold text-orange-600 mr-1">{String.fromCharCode(65 + idx)}</span> {opt}
                           </div>
                       ))}
@@ -177,7 +177,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                           <div key={q.id} className="flex items-center justify-between gap-4 p-2 hover:bg-slate-50 rounded">
                               <div className="flex items-center gap-3">
                                   <span className="font-bold text-slate-400">{idx + 1}.</span>
-                                  <span className="text-slate-800">{q.text}</span>
+                                  <p className="text-slate-800 whitespace-pre-wrap">{q.text}</p>
                               </div>
                               
                               <div className="flex items-center gap-2">
@@ -185,7 +185,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                                     value={userAnswers[q.id] || ""}
                                     onChange={(e) => handleInputChange(q.id, e.target.value)}
                                     disabled={isSubmitted}
-                                    className={`block w-20 px-2 py-1 text-sm border rounded focus:ring-orange-500 focus:border-orange-500 ${isSubmitted ? (isCorrect ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-red-500 bg-red-50 text-red-800') : 'border-slate-300'}`}
+                                    className={`block w-full py-2 pl-3 pr-8 border rounded focus:ring-orange-500 focus:border-orange-500 ${isSubmitted ? (isCorrect ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-red-500 bg-red-50 text-red-800') : 'border-slate-300 bg-white text-slate-900'}`}
                                   >
                                       <option value="">Select</option>
                                       {group.sharedOptions?.map((_, optIdx) => (
@@ -213,7 +213,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
       const parts = group.content.split(/({{[^}]+}})/g);
       
       return (
-          <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm leading-loose text-slate-800">
+          <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm leading-loose text-slate-800 whitespace-pre-wrap">
               {parts.map((part, idx) => {
                   if (part.startsWith('{{') && part.endsWith('}}')) {
                       const qId = part.slice(2, -2); // extract qId
@@ -346,35 +346,37 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
         <div className="flex-grow flex overflow-hidden h-full pt-[116px] lg:pt-[72px]">
             {/* LEFT PANEL: Lesson */}
             <div 
-                className={`
-                    flex-1 bg-white overflow-y-auto border-r border-slate-200
-                    ${activeView === 'LESSON' ? 'block' : 'hidden'} 
-                    lg:block lg:w-1/2
-                `}
                 onScroll={handleScroll}
+                className={`flex-1 bg-white overflow-y-auto border-r border-slate-200 ${activeView === 'LESSON' ? 'block' : 'hidden'} lg:block`}
             >
                 <div className="p-8 max-w-3xl mx-auto prose prose-slate pb-24">
-                    <MarkdownRenderer text={module.lessonContent} />
+                    <MarkdownRenderer text={module.lessonContent} baseSize="base" />
                 </div>
             </div>
 
             {/* RIGHT PANEL: Worksheet */}
             <div 
-                className={`
-                    flex-1 bg-slate-50 overflow-y-auto
-                    ${activeView === 'EXERCISES' ? 'block' : 'hidden'} 
-                    lg:block lg:w-1/2
-                `}
-                 onScroll={handleScroll}
+                onScroll={handleScroll}
+                className={`flex-1 bg-slate-50 overflow-y-auto ${activeView === 'EXERCISES' ? 'block' : 'hidden'} lg:block`}
             >
                 <div className="p-6 lg:p-10 space-y-8 max-w-3xl mx-auto w-full pb-24">
                     {(module.groups || []).map((group, idx) => (
                         <div key={group.id} className="space-y-4">
-                            <div className="flex items-baseline justify-between border-b border-slate-200 pb-2">
-                                <h3 className="text-lg font-extrabold text-slate-700">{group.title || `Question Group ${idx + 1}`}</h3>
-                                <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded uppercase">{group.type.replace('_', ' ')}</span>
+                             <div className="bg-orange-600 text-white rounded-lg shadow-md p-4">
+                                <div className="flex justify-between items-start">
+                                    <h3 className="text-xl font-extrabold">
+                                        {group.title || `Question Group ${idx + 1}`}
+                                    </h3>
+                                    <span className="bg-white/20 text-white text-xs font-bold uppercase px-3 py-1 rounded-full">
+                                        {group.type.replace('_', ' ')}
+                                    </span>
+                                </div>
+                                {group.instruction && (
+                                    <p className="mt-2 text-sm text-white/90">
+                                        {group.instruction}
+                                    </p>
+                                )}
                             </div>
-                            {group.instruction && <p className="text-sm text-slate-500 italic">{group.instruction}</p>}
                             
                             {group.type === 'MCQ' && renderMCQ(group)}
                             {group.type === 'MATCHING' && renderMatching(group)}

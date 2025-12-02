@@ -268,7 +268,7 @@ export const getEssayOutlines = async (
   language: 'en' | 'vi'
 ): Promise<{ task1Outline?: string; task2Outline?: string }> => {
     const ai = getAiClient();
-    const model = 'gemini-3-pro-preview'; // Using Pro model for better outline reasoning
+    const model = 'gemini-2.5-flash'; // Use flash model for cost-effectiveness
     const languageInstruction = language === 'vi' ? 'The entire outline MUST be in Vietnamese.' : 'The entire outline MUST be in English.';
 
     const createPrompt = (taskNum: 1 | 2, history: ChatMessage[]) => {
@@ -327,7 +327,7 @@ export const getEssayFeedback = async (
   language: 'en' | 'vi'
 ): Promise<EssayFeedback> => {
   const ai = getAiClient();
-  const model = 'gemini-2.5-flash'; // Use Flash for speed and higher rate limits
+  const model = 'gemini-2.5-flash'; // Use Flash and enhance with thinking budget
   
   const contextQuery = `${essay1} ${essay2}`;
   const context = retrieveContext(contextQuery);
@@ -338,48 +338,46 @@ export const getEssayFeedback = async (
   const task2BandDescriptors = essay2 ? TASK_2_BAND_DESCRIPTORS : "Task 2 essay not provided.";
 
   const prompt = `
-    You are an expert IELTS examiner. Analyze the following student's essays for an IELTS Academic Writing test.
+    You are an extremely strict and detailed IELTS writing examiner. Your task is to provide a thorough, constructive, and comprehensive review of a student's writing.
     The student's target band score is ${targetScore}.
     ${languageInstruction}
 
-    **CRITICAL KNOWLEDGE BASE:** You MUST use the following expert context as the primary source of truth for your evaluation. Base your feedback, especially regarding IELTS criteria, on this information. Do not mention the word "CONTEXT".
-    --- START CONTEXT ---
-    ${context}
-    --- END CONTEXT ---
+    **CRITICAL INSTRUCTIONS:**
+    1.  **JSON ONLY:** Your entire response MUST be a single, valid JSON object that conforms to the provided schema. Do not include any text, notes, or explanations outside of the JSON structure.
+    2.  **EXPERT CONTEXT:** You MUST use the provided expert context as the primary source of truth for your evaluation. Base your feedback on this information. Do not mention the word "CONTEXT".
+    3.  **BAND CALIBRATION:** Calibrate all your feedback and suggestions to the student's target band score. For a student aiming for ${targetScore}, suggest vocabulary and grammatical structures that would help them achieve a score of ${targetScore + 0.5}, but do not suggest overly complex Band 9.0 language if it is inappropriate for their level.
 
-    **Test Prompts:**
-    - Task 1: ${test.tasks[0].prompt}
-    - Task 2: ${test.tasks[1].prompt}
+    **ANALYSIS PROCESS (Follow these steps internally before generating the JSON):**
+    1.  Read both essays and their corresponding prompts.
+    2.  Analyze each essay paragraph by paragraph.
+    3.  For each paragraph, identify all issues and strengths related to the four official IELTS criteria (Task Response, Coherence & Cohesion, Lexical Resource, Grammatical Range & Accuracy).
+    4.  Synthesize all your notes into the final, structured JSON response.
 
-    **Student's Essays:**
-    --- START ESSAY 1 ---
-    ${essay1 || "Not submitted."}
-    --- END ESSAY 1 ---
-
-    --- START ESSAY 2 ---
-    ${essay2 || "Not submitted."}
-    --- END ESSAY 2 ---
-
-    **IELTS Band Descriptors (for your reference):**
-    --- TASK 1 DESCRIPTORS ---
-    ${task1BandDescriptors}
-    --- END TASK 1 DESCRIPTORS ---
-
-    --- TASK 2 DESCRIPTORS ---
-    ${task2BandDescriptors}
-    --- END TASK 2 DESCRIPTORS ---
+    **TEST & STUDENT DATA:**
+    - Test Prompts:
+      - Task 1: ${test.tasks[0].prompt}
+      - Task 2: ${test.tasks[1].prompt}
+    - Student's Essays:
+      - Essay 1: ${essay1 || "Not submitted."}
+      - Essay 2: ${essay2 || "Not submitted."}
+    - IELTS Band Descriptors (for your reference):
+      - Task 1: ${task1BandDescriptors}
+      - Task 2: ${task2BandDescriptors}
+    - Expert Context:
+      ${context}
 
     **Your Task:**
-    Provide a detailed, criteria-based evaluation. Adhere strictly to the JSON schema.
-    1.  **Score Generation:** Score each task against the 4 criteria (Task Achievement/Response, Coherence & Cohesion, Lexical Resource, Grammatical Range & Accuracy). Provide a specific score (e.g., 6.0, 6.5) and concise feedback for each. Calculate the overall score (Task 2 is weighted twice as much as Task 1). If a task is not submitted, give it a score of 0.
-    2.  **Overall Feedback:** Write a constructive summary, referencing the student's target score. Explain what they did well and what's holding them back.
+    Provide a detailed, criteria-based evaluation. Adhere strictly to the JSON schema and the following instructions for each field.
+
+    1.  **Score Generation:** Score each task against the 4 criteria. Provide a specific score (e.g., 6.0, 6.5) and concise feedback for each. If a task is not submitted, give all its criteria scores as 0.
+    2.  **Overall Feedback:** Write a constructive summary, referencing the student's target score.
     3.  **Strengths:** Identify 2-3 clear strengths from their writing.
-    4.  **Areas for Improvement:** Identify 2-3 of the most critical weaknesses that are limiting their score. For each, give a title and actionable advice.
-    5.  **Improvements (Text-level):** Find 5-7 specific sentences or phrases in the original essays that could be improved. For each:
-        -   'originalText': Quote the exact text.
-        -   'improvedText': Provide a better version.
-        -   'explanation': Briefly explain why the change is better.
-        -   'criterion': Link it to one of the official IELTS criteria.
+    4.  **Areas for Improvement:** Identify 2-3 of the most critical weaknesses. For each, give a 'title' (e.g., "Lack of Complex Sentences") and actionable 'feedback'.
+    5.  **Improvements (Text-level):** Generate 10-15 improvement objects. Follow these rules STRICTLY:
+        -   'originalText': Quote the **shortest possible string** from the essay that contains an error or could be improved. This MUST be a short phrase (2-5 words), NOT a full sentence.
+        -   'improvedText': This field MUST contain a 'diff' using markdown. Use \`~~word~~\` for deletions and \`**word**\` for additions. For example, if 'originalText' is "a lot of benefits", 'improvedText' could be "**a ~~lot of~~ multitude of** benefits".
+        -   'explanation': Provide a short, clear reason for the change. Be proactive in suggesting more academic alternatives for simple words.
+        -   'criterion': Link the improvement to one of the four official IELTS criteria.
   `;
 
   const criterionScoreSchema = {
@@ -418,7 +416,6 @@ export const getEssayFeedback = async (
   const responseSchema = {
     type: Type.OBJECT,
     properties: {
-      overallScore: { type: Type.NUMBER },
       overallFeedback: { type: Type.STRING },
       improvements: { type: Type.ARRAY, items: improvementSchema },
       strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -450,7 +447,7 @@ export const getEssayFeedback = async (
         required: ['task1', 'task2']
       },
     },
-    required: ['overallScore', 'overallFeedback', 'improvements', 'strengths', 'areasForImprovement', 'detailedScores']
+    required: ['overallFeedback', 'improvements', 'strengths', 'areasForImprovement', 'detailedScores']
   };
   
   const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
@@ -459,11 +456,13 @@ export const getEssayFeedback = async (
     config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
+        thinkingConfig: { thinkingBudget: 16384 }, // Enhance reasoning for better feedback
     },
   }));
 
+  const result = JSON.parse(response.text) as Omit<EssayFeedback, 'overallScore'>;
+
   // Add IDs to improvements if they are missing
-  const result = JSON.parse(response.text);
   if (result.improvements) {
     result.improvements.forEach((imp: Improvement, index: number) => {
         if (!imp.id) {
@@ -475,7 +474,40 @@ export const getEssayFeedback = async (
     });
   }
 
-  return result;
+  // --- START: ACCURATE OVERALL SCORE CALCULATION ---
+  const roundToHalf = (value: number): number => {
+    return Math.round(value * 2) / 2;
+  };
+
+  const calculateTaskAverage = (scores: Task1BandScores | Task2BandScores): number => {
+    if (!scores || Object.keys(scores).length === 0) return 0;
+    
+    const criteriaScores: (CriterionScore | undefined)[] = 'TaskAchievement' in scores 
+        ? [scores.TaskAchievement, scores.CoherenceAndCohesion, scores.LexicalResource, scores.GrammaticalRangeAndAccuracy]
+        : [scores.TaskResponse, scores.CoherenceAndCohesion, scores.LexicalResource, scores.GrammaticalRangeAndAccuracy];
+
+    const validScores = criteriaScores.filter(c => c && typeof c.score === 'number').map(c => c!.score);
+    
+    if (validScores.length === 0) return 0;
+
+    const sum = validScores.reduce((acc, score) => acc + score, 0);
+    return sum / validScores.length;
+  };
+
+  const task1Average = calculateTaskAverage(result.detailedScores.task1);
+  const task2Average = calculateTaskAverage(result.detailedScores.task2);
+
+  const rawOverallScore = (task1Average + (task2Average * 2)) / 3;
+  const finalOverallScore = roundToHalf(rawOverallScore);
+
+  // Add the calculated score to the final object.
+  const finalResult: EssayFeedback = {
+    ...result,
+    overallScore: finalOverallScore,
+  };
+  // --- END: ACCURATE OVERALL SCORE CALCULATION ---
+
+  return finalResult;
 };
 
 export const generateModelAnswer = async (prompt: string, taskNumber: 1 | 2): Promise<string> => {

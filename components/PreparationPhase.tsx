@@ -121,8 +121,6 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
     }
   }, [messagesTask1, messagesTask2, activeTab, isLoading, isInteractive]);
   
-  // FIX: Removed the problematic initialization useEffect. Logic is now handled by the parent TestScreen.
-
   const handleTabChange = (tab: ActiveTab) => {
     if (tab === 'vocabulary') {
         setUnseenVocabCount(0);
@@ -159,8 +157,9 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
     const activeSuggestions = activeTab === 'task1' ? suggestionsTask1 : suggestionsTask2;
     const hasMessages = activeMessages.length > 0;
 
+    // IMPORTANT: No h-full here. We rely on the parent wrapper (flex-grow) to control height.
     return (
-      <div className={`flex flex-col h-full ${isInteractive ? '' : 'bg-slate-50'}`}>
+      <div className={`flex flex-col h-full overflow-hidden ${isInteractive ? '' : 'bg-slate-50'}`}>
         <div className="flex-grow p-6 overflow-y-auto bg-slate-50 space-y-4">
           {!hasMessages && mode === 'review' && (
              <div className="flex h-full items-center justify-center">
@@ -189,7 +188,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
         
         {/* DYNAMIC SUGGESTION BAR */}
         {isInteractive && showActionButtons && (
-            <div className="p-3 border-t border-slate-200 bg-white/80 backdrop-blur-sm">
+            <div className="p-3 border-t border-slate-200 bg-white/80 backdrop-blur-sm flex-shrink-0">
                 <div className="flex items-center gap-2 overflow-x-auto pb-2">
                     {activeSuggestions.map((suggestion, idx) => (
                         <button
@@ -211,7 +210,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
             </div>
         )}
 
-        {error && isInteractive && <p className="p-4 text-sm text-red-700 bg-red-50 border-t border-slate-200">{error}</p>}
+        {error && isInteractive && <p className="p-4 text-sm text-red-700 bg-red-50 border-t border-slate-200 flex-shrink-0">{error}</p>}
         {isInteractive && (
           <form onSubmit={handleSubmit} className="p-4 border-t border-slate-200 bg-white flex items-center gap-4 flex-shrink-0">
             <input
@@ -343,7 +342,9 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
             </button>
           </div>
         )}
-        <div className="sticky top-0 z-10 p-2 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
+        
+        {/* Nav Bar */}
+        <div className="p-2 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
           <nav className="flex items-center gap-2">
             {tasksToPractice.includes('task1') && <button onClick={() => handleTabChange('task1')} className={`flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'task1' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Task 1 Prep</button>}
             {tasksToPractice.includes('task2') && <button onClick={() => handleTabChange('task2')} className={`flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'task2' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Task 2 Prep</button>}
@@ -351,16 +352,20 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
             {mode === 'review' && (<button onClick={() => handleTabChange('outlines')} className={`relative flex-1 p-3 text-sm font-semibold text-center transition-colors rounded-md ${activeTab === 'outlines' ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Outlines</button>)}
           </nav>
         </div>
-        {activeTab === 'task1' && renderChatInterface()}
-        {activeTab === 'task2' && renderChatInterface()}
-        {activeTab === 'vocabulary' && renderVocabularyInterface()}
-        {activeTab === 'outlines' && mode === 'review' && renderOutlinesInterface()}
+
+        {/* Content Wrapper - Using flex-grow and min-h-0 to contain height */}
+        <div className="flex-grow overflow-hidden min-h-0 relative">
+            {activeTab === 'task1' && renderChatInterface()}
+            {activeTab === 'task2' && renderChatInterface()}
+            {activeTab === 'vocabulary' && renderVocabularyInterface()}
+            {activeTab === 'outlines' && mode === 'review' && renderOutlinesInterface()}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white rounded-lg shadow-lg overflow-hidden border border-slate-200">
        {/* Image Modal */}
       {imageModalUrl && (
         <div
@@ -387,10 +392,10 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
       )}
       
       {/* Main Content Area: Two-panel layout */}
-      <div className="flex-grow grid grid-cols-12 gap-6 overflow-hidden">
+      <div className="flex-grow flex flex-row overflow-hidden min-h-0">
         
         {/* Left Panel (Task Details) */}
-        <div className="col-span-7 bg-white rounded-lg shadow-md border border-slate-200 p-6 overflow-y-auto">
+        <div className="w-[65%] bg-slate-50 border-r border-slate-200 p-6 overflow-y-auto h-full">
           <div className="space-y-6">
              {(activeTab === 'task1' || (activeTab === 'vocabulary' && lastViewedTaskTab === 'task1')) && tasksToPractice.includes('task1') && (
                <div>
@@ -420,7 +425,7 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
         </div>
 
         {/* Right Panel (Chat/Vocab/Outlines) */}
-        <div className="col-span-5 flex flex-col min-w-0 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden">
+        <div className="w-[35%] flex flex-col min-w-0 bg-white h-full overflow-hidden">
           {/* Sticky Tab Bar */}
           <div className="sticky top-0 z-10 p-2 bg-white/80 backdrop-blur-sm border-b border-slate-200 flex-shrink-0">
             <nav className="flex items-center gap-2">
@@ -444,16 +449,15 @@ const PreparationPhase: React.FC<PreparationPhaseProps> = ({
                     </span>
                   )}
               </button>
-              {/* FIX: Removed dead code. The 'outlines' tab and its associated logic should only appear in 'review' mode, which is handled by the !isInteractive block. */}
             </nav>
           </div>
           
-          {/* Tab Content */}
-          {activeTab === 'task1' && renderChatInterface()}
-          {activeTab === 'task2' && renderChatInterface()}
-          {activeTab === 'vocabulary' && renderVocabularyInterface()}
-          {/* FIX: Removed dead code. The 'outlines' tab and its associated logic should only appear in 'review' mode, which is handled by the !isInteractive block. */}
-
+          {/* Tab Content - Wrapper handles overflow */}
+          <div className="flex-grow overflow-hidden min-h-0">
+             {activeTab === 'task1' && renderChatInterface()}
+             {activeTab === 'task2' && renderChatInterface()}
+             {activeTab === 'vocabulary' && renderVocabularyInterface()}
+          </div>
         </div>
       </div>
     </div>

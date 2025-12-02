@@ -236,16 +236,12 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
     }
   }, [sessionTask1, sessionTask2, messagesTask1, messagesTask2, language]);
 
-  // FIX: Centralize initialization logic here. This effect triggers the AI chat
-  // only when the component enters the PREPARATION phase, ensuring all state
-  // (like 'language') is consistent.
   useEffect(() => {
     if (phase === TestPhase.PREPARATION) {
       const tasksToPractice = practiceMode === 'task1' ? ['task1'] : practiceMode === 'task2' ? ['task2'] : ['task1', 'task2'];
       const taskNumToInit = tasksToPractice[0] === 'task1' ? 1 : 2;
       const messages = taskNumToInit === 1 ? messagesTask1 : messagesTask2;
 
-      // Only initialize if the chat is empty. This prevents re-initialization on re-renders.
       if (messages.length === 0) {
         handleInitializeTask(taskNumToInit);
       }
@@ -275,24 +271,28 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
         return <TargetScoreSelectionPhase onGoalsSet={handleGoalsSet} practiceMode={practiceMode} />;
       case TestPhase.PREPARATION:
         if (targetScore === null) return <div className="text-center">Error: Target score not set. Please go back and select a test again.</div>;
-        return <PreparationPhase 
-            test={test} 
-            targetScore={targetScore} 
-            onComplete={handlePreparationComplete}
-            mode="interactive"
-            language={language}
-            tasksToPractice={tasksToPractice as any}
-            messagesTask1={messagesTask1}
-            messagesTask2={messagesTask2}
-            vocabularyTask1={vocabularyTask1}
-            vocabularyTask2={vocabularyTask2}
-            suggestionsTask1={suggestionsTask1}
-            suggestionsTask2={suggestionsTask2}
-            isLoading={isPrepLoading}
-            error={prepError}
-            onInitializeTask={handleInitializeTask}
-            onSendMessage={handleSendMessage}
-        />;
+        return (
+            <div className="h-[calc(100vh-160px)]">
+                <PreparationPhase 
+                    test={test} 
+                    targetScore={targetScore} 
+                    onComplete={handlePreparationComplete}
+                    mode="interactive"
+                    language={language}
+                    tasksToPractice={tasksToPractice as any}
+                    messagesTask1={messagesTask1}
+                    messagesTask2={messagesTask2}
+                    vocabularyTask1={vocabularyTask1}
+                    vocabularyTask2={vocabularyTask2}
+                    suggestionsTask1={suggestionsTask1}
+                    suggestionsTask2={suggestionsTask2}
+                    isLoading={isPrepLoading}
+                    error={prepError}
+                    onInitializeTask={handleInitializeTask}
+                    onSendMessage={handleSendMessage}
+                />
+            </div>
+        );
       case TestPhase.OUTLINE_REVIEW:
         if (targetScore === null) return <div className="text-center">Error: Target score not set. Please go back and select a test again.</div>;
         return <OutlineReviewPhase 
@@ -318,8 +318,8 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
         const duration = writingDuration ?? getDefaultDuration();
         const isGuidedPractice = practiceMode !== 'mock';
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
-            <div className={`${isGuidedPractice ? 'lg:col-span-7 xl:col-span-7' : 'lg:col-span-12'}`}>
+          <div className="flex flex-col lg:flex-row gap-8 h-[calc(100vh-160px)]">
+            <div className={`${isGuidedPractice ? 'lg:w-7/12' : 'w-full'} w-full min-h-0`}>
               <WritingPhase 
                 test={test} 
                 onSubmit={handleSubmission} 
@@ -330,7 +330,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
               />
             </div>
             {isGuidedPractice && (
-              <aside className="lg:col-span-5 xl:col-span-5">
+              <aside className="w-full lg:w-5/12 min-h-0 h-full">
                 <PreparationPhase
                     test={test}
                     targetScore={targetScore!}
@@ -386,7 +386,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
             <Button onClick={onExit} variant="secondary">Exit Test</Button>
         </div>
       </div>
-      <div className={phase === TestPhase.PREPARATION ? "h-[calc(100vh-13rem)]" : ""}>
+      <div>
         {renderPhase()}
       </div>
     </div>

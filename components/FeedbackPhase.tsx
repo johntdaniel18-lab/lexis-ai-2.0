@@ -7,19 +7,42 @@ import Button from './common/Button';
 import Spinner from './common/Spinner';
 import MarkdownRenderer from './common/MarkdownRenderer';
 
-// --- ICONS ---
-const LightningIcon: React.FC<{ className?: string }> = ({ className = "h-6 w-6 text-rose-500" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+// --- ICONS & CARD COMPONENT ---
+const LightningIcon: React.FC = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
   </svg>
 );
 
-const TrophyIcon: React.FC<{ className?: string }> = ({ className = "h-6 w-6 text-emerald-500" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+const TrophyIcon: React.FC = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 );
 
+interface StyledFeedbackCardProps {
+  title: string;
+  text: string;
+}
+
+const StyledFeedbackCard: React.FC<StyledFeedbackCardProps> = ({ title, text }) => (
+    <div className={`flex items-start p-4 rounded-lg shadow-sm w-full border bg-rose-50 border-rose-200`}>
+      <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg mr-4"><LightningIcon /></div>
+      <div className="flex-1">
+        <h5 className="font-bold text-slate-800">{title}</h5>
+        <p className="mt-1 text-sm text-slate-600">{text}</p>
+      </div>
+    </div>
+);
+const StrengthCard: React.FC<{ text: string }> = ({ text }) => (
+    <div className={`flex items-start p-4 rounded-lg shadow-sm w-full border bg-emerald-50 border-emerald-200`}>
+      <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg mr-4"><TrophyIcon /></div>
+      <div className="flex-1">
+        <h5 className="font-bold text-slate-800">Strength</h5>
+        <p className="mt-1 text-sm text-slate-600">{text}</p>
+      </div>
+    </div>
+);
 
 // --- MODEL ANSWER DISPLAY ---
 interface ModelAnswerDisplayProps {
@@ -161,47 +184,10 @@ const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({
             <p className="text-slate-600 whitespace-pre-wrap">{feedback?.overallFeedback || 'Overall feedback not available.'}</p>
           </div>
 
-          <div>
-            <h4 className="text-xl font-extrabold text-slate-800 text-center mb-6">Summary Feedback</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Areas for Improvement */}
-              <div>
-                <h5 className="flex items-center gap-2 text-lg font-bold text-rose-600 mb-4">
-                  <LightningIcon /> Areas for Improvement
-                </h5>
-                <ul className="space-y-4">
-                  {(feedback.areasForImprovement || []).map((item, index) => (
-                    <li key={`imp-${index}`} className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-rose-100 mt-1">
-                        <LightningIcon className="h-4 w-4 text-rose-500" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-800">{item.title}</p>
-                        <p className="text-sm text-slate-600">{item.feedback}</p>
-                      </div>
-                    </li>
-                  ))}
-                  {(feedback.areasForImprovement || []).length === 0 && <p className="text-sm text-slate-400 italic">No major areas for improvement identified. Great job!</p>}
-                </ul>
-              </div>
-              {/* Strengths */}
-              <div>
-                <h5 className="flex items-center gap-2 text-lg font-bold text-emerald-600 mb-4">
-                  <TrophyIcon /> Your Strengths
-                </h5>
-                <ul className="space-y-4">
-                  {(feedback.strengths || []).map((strength, index) => (
-                    <li key={`str-${index}`} className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-emerald-100 mt-1">
-                        <TrophyIcon className="h-4 w-4 text-emerald-500" />
-                      </div>
-                      <p className="text-sm text-slate-700 pt-1">{strength}</p>
-                    </li>
-                  ))}
-                  {(feedback.strengths || []).length === 0 && <p className="text-sm text-slate-400 italic">No specific strengths highlighted in this report.</p>}
-                </ul>
-              </div>
-            </div>
+          <div className="space-y-4">
+             <h4 className="text-xl font-extrabold text-slate-800 text-center">Summary Feedback</h4>
+            {(feedback.areasForImprovement || []).map((item, index) => <StyledFeedbackCard key={`imp-${index}`} title={item.title} text={item.feedback} />)}
+            {(feedback.strengths || []).map((strength, index) => <StrengthCard key={`str-${index}`} text={strength} />)}
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

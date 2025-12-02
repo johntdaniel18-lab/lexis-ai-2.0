@@ -6,19 +6,35 @@ interface SuggestionProps {
 }
 
 const Suggestion: React.FC<SuggestionProps> = ({ original, improved }) => {
-  // Clean the improved text from any potential markdown diffs the AI might still send.
-  const improvedTextContent = improved.replace(/(\*\*|~~)/g, '');
+  // Heuristic to check if the AI provided a markdown diff.
+  const hasMarkdown = improved.includes('~~') || improved.includes('**');
 
+  // Case 1: The AI provides a detailed diff with markdown (the ideal case).
+  if (hasMarkdown) {
+    const parts = improved.split(/(~~.*?~~|\*\*.*?\*\*)/g).filter(Boolean);
+    return (
+      <span>
+        {parts.map((part, i) => {
+          if (part.startsWith('~~') && part.endsWith('~~')) {
+            return <s key={i} className="text-red-700 bg-red-100 px-1 rounded-sm">{part.slice(2, -2)}</s>;
+          }
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={i} className="text-orange-800 bg-orange-100 px-1 rounded-sm">{part.slice(2, -2)}</strong>;
+          }
+          return <span key={i}>{part}</span>;
+        })}
+      </span>
+    );
+  }
+
+  // Case 2: Fallback for when the AI provides a simple correction without markdown.
+  // This ensures the user always sees the 'before' and 'after' for clarity.
   return (
-    <div className="flex flex-wrap items-baseline gap-2">
-      <span className="bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded-md font-medium line-through">
-        {original}
-      </span>
-      <span className="font-bold text-slate-400">&rarr;</span>
-      <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md font-medium">
-        {improvedTextContent}
-      </span>
-    </div>
+    <span>
+      <s className="text-red-700 bg-red-100 px-1 rounded-sm">{original}</s>
+      <span className="mx-1.5 font-sans font-bold text-slate-500">→</span>
+      <strong className="text-emerald-800 bg-emerald-100 px-1 rounded-sm">{improved}</strong>
+    </span>
   );
 };
 

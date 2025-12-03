@@ -15,6 +15,7 @@ import ModeSelectionScreen from './components/ModeSelectionScreen';
 import Spinner from './components/common/Spinner';
 import ConfirmationModal from './components/common/ConfirmationModal';
 import StaticDrillPlayer from './components/StaticDrillPlayer';
+import LandingPage from './components/LandingPage';
 
 // Firebase imports
 import { auth } from './services/firebase';
@@ -46,6 +47,9 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<StudentView>('dashboard');
   const [appLoading, setAppLoading] = useState(true);
 
+  // New state for landing page flow
+  const [isEnteringApp, setIsEnteringApp] = useState(false);
+
   // Data State
   const [tests, setTests] = useState<IeltsTest[]>([]);
   const [completedTests, setCompletedTests] = useState<CompletedTest[]>([]);
@@ -74,6 +78,7 @@ const App: React.FC = () => {
       setAppLoading(true);
       if (user) {
         setCurrentUser(user);
+        setIsEnteringApp(true); // User is logged in, so they are "in the app"
         
         // Parallel data fetching
         try {
@@ -105,6 +110,7 @@ const App: React.FC = () => {
         if (userRole === 'student') {
             setUserRole(null);
         }
+        // Don't set isEnteringApp to false here, as logout should go to login screen
       }
       setAppLoading(false);
     });
@@ -183,6 +189,7 @@ const App: React.FC = () => {
     setCurrentView('dashboard');
     setTestToDelete(null); // Clear any pending deletions
     setDrillToDelete(null);
+    setIsEnteringApp(true); // After logout, go to login, not landing
     sessionStorage.removeItem(API_KEY_STORAGE_KEY);
     sessionStorage.removeItem(API_KEY_VALIDATED_KEY);
   }, []);
@@ -210,7 +217,8 @@ const App: React.FC = () => {
     setActiveDrill(null);
     setActiveStaticDrill(null);
     setCurrentView('dashboard'); 
-  }, []);
+    setIsEnteringApp(!!currentUser); // Go to landing if not logged in
+  }, [currentUser]);
 
   const handleCompleteTest = useCallback(async (result: Omit<CompletedTest, 'id' | 'completionDate'>) => {
     if (!currentUser) return;
@@ -383,11 +391,14 @@ const App: React.FC = () => {
   }
 
   const renderContent = () => {
-    // FIX: Allow admin access even if currentUser is null (since admin uses key, not firebase auth)
-    if (!userRole) {
-      return <LoginScreen onLogin={handleLogin} />;
+    if (!userRole && !isEnteringApp) {
+      return <LandingPage onGetStarted={() => setIsEnteringApp(true)} />;
     }
     
+    if (!userRole && isEnteringApp) {
+        return <LoginScreen onLogin={handleLogin} />;
+    }
+
     if (userRole === 'student' && !currentUser) {
        return <LoginScreen onLogin={handleLogin} />;
     }
@@ -463,45 +474,48 @@ const App: React.FC = () => {
   };
   
   const isWorkspaceView = userRole === 'student' && (selectedTest || viewingCompletedTest || activeDrill || activeStaticDrill);
+  const showHeader = (userRole || isEnteringApp);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans antialiased flex flex-col">
-      <header className={`bg-white/80 backdrop-blur-sm sticky top-0 z-50 border-b border-slate-200 transition-transform duration-300 ease-in-out ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-        <div className={`${isWorkspaceView ? '' : 'max-w-7xl'} mx-auto py-2 px-4 sm:px-6 lg:px-8 flex items-center justify-between`}>
-           <h1 className="flex items-center gap-2 text-xl tracking-tight text-slate-800">
-            <Logo className="h-10 w-10" />
-            <span className="font-extrabold">Lexis<span className="font-extrabold text-orange-500 ml-1">AI</span></span>
-          </h1>
-          {(currentUser || userRole === 'admin') && (
-            <div className="flex items-center gap-4">
-              {isWorkspaceView ? (
-                <Button onClick={handleExit} variant="secondary">
-                  Back to Dashboard
-                </Button>
-              ) : (
-                userRole === 'student' && (
-                  <nav className="flex items-center p-0.5 bg-slate-200/80 rounded-lg space-x-1">
-                      <button onClick={() => setCurrentView('dashboard')} className={`px-3 py-1 text-sm font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-orange-500 transition-colors ${currentView === 'dashboard' ? 'bg-white text-orange-600 shadow' : 'bg-transparent text-slate-600 hover:bg-white/50'}`}>
-                          Dashboard
-                      </button>
-                       <button onClick={() => setCurrentView('learn')} className={`px-3 py-1 text-sm font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-orange-500 transition-colors ${currentView === 'learn' ? 'bg-white text-orange-600 shadow' : 'bg-transparent text-slate-600 hover:bg-white/50'}`}>
-                          Learn
-                      </button>
-                      <button onClick={() => setCurrentView('progress')} className={`px-3 py-1 text-sm font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-orange-500 transition-colors ${currentView === 'progress' ? 'bg-white text-orange-600 shadow' : 'bg-transparent text-slate-600 hover:bg-white/50'}`}>
-                          My Progress
-                      </button>
-                  </nav>
-                )
-              )}
-               <Button onClick={handleLogout} variant="primary">
-                  Logout
-                </Button>
-            </div>
-          )}
-        </div>
-      </header>
+      {showHeader && (
+        <header className={`bg-white/80 backdrop-blur-sm sticky top-0 z-50 border-b border-slate-200 transition-transform duration-300 ease-in-out ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+          <div className={`${isWorkspaceView ? '' : 'max-w-7xl'} mx-auto py-2 px-4 sm:px-6 lg:px-8 flex items-center justify-between`}>
+             <button onClick={() => setIsEnteringApp(false)} className="flex items-center gap-2 text-xl tracking-tight text-slate-800">
+              <Logo className="h-10 w-10" />
+              <span className="font-extrabold">Lexis<span className="font-extrabold text-orange-500 ml-1">AI</span></span>
+            </button>
+            {(currentUser || userRole === 'admin') && (
+              <div className="flex items-center gap-4">
+                {isWorkspaceView ? (
+                  <Button onClick={handleExit} variant="secondary">
+                    Back to Dashboard
+                  </Button>
+                ) : (
+                  userRole === 'student' && (
+                    <nav className="flex items-center p-0.5 bg-slate-200/80 rounded-lg space-x-1">
+                        <button onClick={() => setCurrentView('dashboard')} className={`px-3 py-1 text-sm font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-orange-500 transition-colors ${currentView === 'dashboard' ? 'bg-white text-orange-600 shadow' : 'bg-transparent text-slate-600 hover:bg-white/50'}`}>
+                            Dashboard
+                        </button>
+                         <button onClick={() => setCurrentView('learn')} className={`px-3 py-1 text-sm font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-orange-500 transition-colors ${currentView === 'learn' ? 'bg-white text-orange-600 shadow' : 'bg-transparent text-slate-600 hover:bg-white/50'}`}>
+                            Learn
+                        </button>
+                        <button onClick={() => setCurrentView('progress')} className={`px-3 py-1 text-sm font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-orange-500 transition-colors ${currentView === 'progress' ? 'bg-white text-orange-600 shadow' : 'bg-transparent text-slate-600 hover:bg-white/50'}`}>
+                            My Progress
+                        </button>
+                    </nav>
+                  )
+                )}
+                 <Button onClick={handleLogout} variant="primary">
+                    Logout
+                  </Button>
+              </div>
+            )}
+          </div>
+        </header>
+      )}
       <main className="flex-grow">
-        <div className={`${isWorkspaceView ? '' : 'max-w-7xl'} mx-auto sm:px-6 lg:px-8 py-8`}>
+        <div className={`${isWorkspaceView || !showHeader ? '' : 'max-w-7xl'} mx-auto ${showHeader ? 'sm:px-6 lg:px-8 py-8' : ''}`}>
           {renderContent()}
         </div>
       </main>

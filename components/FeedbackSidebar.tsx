@@ -2,6 +2,13 @@ import React, { useMemo, useEffect } from 'react';
 import { Improvement } from '../types';
 import Suggestion from './Suggestion';
 
+// Import icons
+import TargetIcon from './icons/TargetIcon';
+import ChainLinkIcon from './icons/ChainLinkIcon';
+import BookIcon from './icons/BookIcon';
+import GrammarIcon from './icons/GrammarIcon';
+
+
 interface FeedbackSidebarProps {
   improvements: Improvement[];
   selectedImprovementId: string | null;
@@ -18,12 +25,13 @@ const CRITERION_LABELS: { [key: string]: string } = {
   GrammaticalRangeAndAccuracy: 'Grammar & Accuracy',
 };
 
-const CRITERION_PILL_STYLES: { [key: string]: string } = {
-  TaskAchievement: 'bg-blue-100 text-blue-800',
-  TaskResponse: 'bg-blue-100 text-blue-800',
-  CoherenceAndCohesion: 'bg-emerald-100 text-emerald-800',
-  LexicalResource: 'bg-rose-100 text-rose-800',
-  GrammaticalRangeAndAccuracy: 'bg-red-100 text-red-800',
+// Map criteria to icons
+const CRITERION_ICONS: { [key: string]: React.FC<{ className?: string }> } = {
+  TaskAchievement: TargetIcon,
+  TaskResponse: TargetIcon,
+  CoherenceAndCohesion: ChainLinkIcon,
+  LexicalResource: BookIcon,
+  GrammaticalRangeAndAccuracy: GrammarIcon,
 };
 
 
@@ -69,7 +77,8 @@ const FeedbackSidebar: React.FC<FeedbackSidebarProps> = ({ improvements, selecte
         ) : (
           activeImprovements.map((imp) => {
             const isSelected = imp.id === selectedImprovementId;
-            const pillStyle = CRITERION_PILL_STYLES[imp.criterion] || 'bg-slate-200 text-slate-800';
+            const IconComponent = CRITERION_ICONS[imp.criterion];
+
             return (
               <div
                 key={imp.id}
@@ -78,15 +87,16 @@ const FeedbackSidebar: React.FC<FeedbackSidebarProps> = ({ improvements, selecte
                 className={`p-4 rounded-lg cursor-pointer transition-all duration-200 bg-white shadow-sm hover:bg-slate-100/50 ${isSelected ? 'ring-2 ring-orange-500' : 'border border-slate-200'}`}
               >
                 <div className="flex justify-between items-center mb-3">
-                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${pillStyle}`}>
+                   <span className="flex items-center gap-2 px-3 py-1 text-sm font-bold rounded-md bg-orange-500 text-white shadow">
+                    {IconComponent && <IconComponent className="h-4 w-4" />}
                     {CRITERION_LABELS[imp.criterion] || 'Suggestion'}
                   </span>
                 </div>
-                <div className="space-y-2">
-                  <div className="text-base text-slate-800 leading-relaxed">
+                <div className="space-y-3">
+                  <div className="text-sm text-slate-800 leading-relaxed">
                     <Suggestion original={imp.originalText} improved={imp.improvedText} />
                   </div>
-                  <p className="text-sm text-slate-500">{imp.explanation}</p>
+                  <p className="text-xs text-slate-500">{imp.explanation}</p>
                 </div>
               </div>
             );

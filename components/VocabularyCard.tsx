@@ -10,7 +10,9 @@ const VocabularyCard: React.FC<VocabularyCardProps> = ({ item }) => {
   return (
     <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm transition-all hover:border-orange-500/30">
       <div className="flex items-center gap-3 mb-2">
-        <BookIcon />
+        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+          <BookIcon className="h-5 w-5 text-orange-600" />
+        </div>
         <h4 className="font-bold text-lg text-orange-600">{item.word}</h4>
       </div>
       <p className="text-sm text-slate-600 mb-2 pl-11">{item.definition}</p>

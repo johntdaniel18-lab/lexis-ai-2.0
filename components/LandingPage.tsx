@@ -165,7 +165,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                            Học Viên Nói Gì Về Lexis AI?
                         </h2>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <TestimonialCard
                             name="Lan Anh"
                             goal="Mục tiêu: Band 7.0"
@@ -180,6 +180,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             name="Thu Hà"
                             goal="Thi lại lần 2"
                             quote="Phản hồi tức thì là điều tuyệt vời nhất. Tôi có thể sửa lỗi và viết lại ngay lập tức, tiến bộ nhanh hơn rất nhiều so với việc chờ gia sư chấm bài."
+                        />
+                        <TestimonialCard
+                            name="Hoàng Nam"
+                            goal="Từ 6.0 lên 7.0"
+                            quote="Tính năng gợi ý từ vựng và brainstorm ý tưởng của Lexis AI thật tuyệt vời. Tôi không còn bị bí ý hay lặp từ nữa, bài viết của tôi giờ đây học thuật hơn hẳn."
                         />
                     </div>
                 </div>

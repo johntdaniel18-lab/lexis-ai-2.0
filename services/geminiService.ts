@@ -375,7 +375,7 @@ export const getEssayFeedback = async (
     4.  **Areas for Improvement:** Identify 2-3 of the most critical weaknesses. For each, give a 'title' (e.g., "Lack of Complex Sentences") and actionable 'feedback'.
     5.  **Improvements (Text-level):** Generate 10-15 improvement objects. Follow these rules STRICTLY:
         -   'originalText': Quote the **shortest possible string** from the essay that contains an error or could be improved. This MUST be a short phrase (2-5 words), NOT a full sentence.
-        -   'improvedText': This field MUST contain a 'diff' using markdown. Use \`~~word~~\` for deletions and \`**word**\` for additions. For example, if 'originalText' is "a lot of benefits", 'improvedText' could be "**a ~~lot of~~ multitude of** benefits".
+        -   'improvedText': Provide ONLY the corrected or improved version of the 'originalText'. For example, if 'originalText' is "a lot of benefits", 'improvedText' should be "a multitude of benefits". DO NOT include the original text or any markdown in your response for this field.
         -   'explanation': Provide a short, clear reason for the change. Be proactive in suggesting more academic alternatives for simple words.
         -   'criterion': Link the improvement to one of the four official IELTS criteria.
   `;

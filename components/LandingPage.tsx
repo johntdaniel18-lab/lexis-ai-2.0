@@ -38,7 +38,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 <Logo className="h-10 w-10" />
                 <span className="font-extrabold text-xl">Lexis<span className="text-orange-500 ml-1">AI</span></span>
             </div>
-            <Button onClick={onGetStarted} variant="primary">Bắt Đầu Ngay</Button>
+            <Button onClick={onGetStarted} variant="primary" className="px-8 py-4 text-lg font-extrabold">Bắt Đầu Ngay</Button>
         </header>
 
         <main>
@@ -52,7 +52,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         Nhận phản hồi chi tiết, chấm điểm theo tiêu chí & luyện tập chuyên sâu để đạt điểm mục tiêu.
                     </p>
                     <div className="mt-8 flex justify-center">
-                        <Button onClick={onGetStarted} className="px-8 py-4 text-lg">Bắt Đầu Luyện Tập</Button>
+                        <Button onClick={onGetStarted} className="px-8 py-4 text-lg font-extrabold">Bắt Đầu Ngay</Button>
                     </div>
                     <div className="mt-16 max-w-4xl mx-auto">
                       <AppPreviewAnimation />

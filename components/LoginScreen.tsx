@@ -3,6 +3,7 @@ import Logo from './icons/Logo';
 import AdminKeyModal from './AdminKeyModal';
 import Spinner from './common/Spinner';
 import { loginUser } from '../services/firebase';
+import YoutubeIcon from './icons/YoutubeIcon';
 
 interface LoginScreenProps {
   onLogin: (role: 'student' | 'admin', apiKey?: string) => Promise<void>;
@@ -115,6 +116,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="text-right -mt-4">
+              <a
+                href="https://www.youtube.com/watch?v=dEdQOGcpSRg"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-orange-600 font-medium transition-colors"
+                aria-label="Watch video tutorial on how to get a Gemini API key"
+              >
+                <YoutubeIcon className="h-4 w-4" />
+                How to get a Gemini API Key?
+              </a>
             </div>
             
             {error && (

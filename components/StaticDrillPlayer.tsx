@@ -107,7 +107,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                   return (
                       <div key={q.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                           <div className="flex gap-3">
-                              <span className="font-bold text-slate-400">{idx + 1}.</span>
+                              <span className="font-bold text-orange-600">{idx + 1}.</span>
                               <div className="flex-grow">
                                   <p className="font-medium text-slate-800 mb-3 whitespace-pre-wrap">{q.text}</p>
                                   <div className="space-y-2">
@@ -176,7 +176,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                       return (
                           <div key={q.id} className="flex items-center justify-between gap-4 p-2 hover:bg-slate-50 rounded">
                               <div className="flex items-center gap-3">
-                                  <span className="font-bold text-slate-400">{idx + 1}.</span>
+                                  <span className="font-bold text-orange-600">{idx + 1}.</span>
                                   <p className="text-slate-800 whitespace-pre-wrap">{q.text}</p>
                               </div>
                               
@@ -207,15 +207,16 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
   };
 
   const renderNotesCompletion = (group: DrillGroup) => {
-      // Split content by {{id}} placeholders
       if (!group.content) return null;
       
       const parts = group.content.split(/({{[^}]+}})/g);
+      let questionCounter = 0;
       
       return (
           <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm leading-loose text-slate-800 whitespace-pre-wrap">
               {parts.map((part, idx) => {
                   if (part.startsWith('{{') && part.endsWith('}}')) {
+                      questionCounter++;
                       const qId = part.slice(2, -2); // extract qId
                       const question = group.questions?.find(q => q.id === qId);
                       if (!question) return null;
@@ -226,14 +227,14 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                       const isWrong = isSubmitted && !isCorrect;
 
                       return (
-                          <span key={idx} className="relative inline-block mx-1">
+                          <span key={idx} className="relative inline-block mx-1 whitespace-nowrap">
+                              <span className="font-bold text-orange-600 mr-1">{questionCounter}.</span>
                               <input
                                   type="text"
                                   value={userAnswer}
                                   onChange={(e) => handleInputChange(qId, e.target.value)}
                                   disabled={isSubmitted}
-                                  className={`w-32 border-b-2 px-1 py-0.5 text-center focus:outline-none font-bold bg-transparent ${isSubmitted ? (isCorrect ? 'border-emerald-500 text-emerald-600' : 'border-red-500 text-red-600') : 'border-slate-400 focus:border-orange-500'}`}
-                                  placeholder={`(${idx+1})`}
+                                  className={`w-32 border-b-2 px-1 py-0.5 focus:outline-none font-bold bg-transparent ${isSubmitted ? (isCorrect ? 'border-emerald-500 text-emerald-600' : 'border-red-500 text-red-600') : 'border-slate-400 focus:border-orange-500'}`}
                               />
                               {isWrong && (
                                   <div className="absolute top-full left-0 mt-1 bg-red-100 text-red-800 text-xs p-2 rounded shadow-lg z-10 w-48 whitespace-normal">

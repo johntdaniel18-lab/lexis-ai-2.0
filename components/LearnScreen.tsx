@@ -87,22 +87,24 @@ const LearnScreen: React.FC<LearnScreenProps> = ({ drills, onStartDrill, initial
                 className="group flex flex-col bg-white rounded-2xl shadow-sm hover:shadow-xl border border-slate-200 transition-all duration-300 transform hover:-translate-y-1 overflow-hidden cursor-pointer"
                 onClick={() => onStartDrill(drill)}
             >
-                <div className="h-32 bg-gradient-to-br from-slate-100 to-slate-200 relative p-6 flex flex-col justify-between">
-                    <div className="flex justify-between items-start">
-                         <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded-full bg-orange-100 text-orange-800 border border-orange-200">
-                            {drill.difficulty}
-                        </span>
-                        <div className="h-8 w-8 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-400 group-hover:text-orange-500 transition-colors">
+                <div className="p-6 flex-grow flex flex-col">
+                    {/* NEW INTEGRATED HEADER */}
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                             <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-orange-100 text-orange-800 border border-orange-200">
+                                {drill.difficulty}
+                            </span>
+                             <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                {drill.category}
+                            </span>
+                        </div>
+                        <div className="h-8 w-8 bg-slate-100 rounded-full flex items-center justify-center shadow-sm text-slate-400 group-hover:text-orange-500 transition-colors flex-shrink-0">
                             <BookOpenIcon />
                         </div>
                     </div>
-                </div>
-                
-                <div className="p-6 flex-grow flex flex-col">
+                    
+                    {/* MAIN CONTENT */}
                     <div className="flex-grow">
-                        <div className="text-xs font-bold text-orange-500 uppercase tracking-wide mb-2">
-                            {drill.category}
-                        </div>
                         <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-orange-600 transition-colors">
                             {drill.title}
                         </h3>
@@ -111,6 +113,7 @@ const LearnScreen: React.FC<LearnScreenProps> = ({ drills, onStartDrill, initial
                         </p>
                     </div>
                     
+                    {/* FOOTER */}
                     <div className="mt-6 pt-6 border-t border-slate-100 flex items-center justify-between">
                          <div className="flex gap-2">
                             {drill.tags.slice(0, 2).map(tag => (

@@ -52,7 +52,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         Nhận phản hồi chi tiết, chấm điểm theo tiêu chí & luyện tập chuyên sâu để đạt điểm mục tiêu.
                     </p>
                     <div className="mt-8 flex justify-center">
-                        <Button onClick={onGetStarted} className="px-8 py-4 text-lg font-extrabold">Bắt Đầu Ngay</Button>
+                        <Button onClick={onGetStarted} variant="primary" className="px-8 py-4 text-lg font-extrabold">Bắt Đầu Ngay</Button>
                     </div>
                     <div className="mt-16 max-w-4xl mx-auto">
                       <AppPreviewAnimation />
@@ -109,6 +109,25 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             <h3 className="text-xl font-bold mb-2">Nhận Phản Hồi AI</h3>
                             <p className="text-slate-600">Xem điểm số, phân tích lỗi và nhận gợi ý chi tiết.</p>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Visual Guide Section */}
+            <section className="py-20 px-6">
+                <div className="max-w-4xl mx-auto text-center">
+                    <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-8">
+                        Hướng Dẫn Trực Quan
+                    </h2>
+                    <div className="aspect-video bg-slate-200 rounded-xl shadow-lg overflow-hidden border-4 border-slate-200">
+                        <iframe
+                            className="w-full h-full"
+                            src="https://www.youtube.com/embed/XHe6s-B4kv8"
+                            title="Lexis AI Tutorial"
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                        ></iframe>
                     </div>
                 </div>
             </section>

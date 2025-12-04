@@ -57,10 +57,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         if (err.message && (err.message.includes("API Key") || err.message.includes("rate limit"))) {
             msg = err.message;
         } 
-        // Then handle Firebase auth errors
+        // Handle specific Firebase auth errors
         else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
              msg = "Access Denied. Your account was not found or the password was incorrect. If you haven't been invited yet, please contact the administrator.";
         } 
+        else if (err.code === 'auth/too-many-requests') {
+             msg = "Access temporarily disabled due to many failed login attempts. Please wait a few minutes or reset your password to restore access immediately.";
+        }
         // Fallback for other errors
         else {
              msg = "An unexpected error occurred during login. Please check your connection and try again.";

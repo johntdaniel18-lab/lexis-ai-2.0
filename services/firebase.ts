@@ -44,12 +44,9 @@ export const db = getFirestore(app);
 // --- Auth Services ---
 
 export const loginUser = async (email: string, password: string) => {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
+  // Directly return the promise so the original error with .code propagates
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  return userCredential.user;
 };
 
 export const logoutUser = async () => {

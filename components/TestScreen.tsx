@@ -118,7 +118,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
     }, [] as VocabularyItem[]);
 
     try {
-      const result = await getEssayFeedback(test, essay1, essay2, targetScore, language);
+      const result = await getEssayFeedback(test, essay1, essay2, targetScore, 'en');
       setFeedback(result);
       
       const testResultPayload = {
@@ -144,7 +144,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
       handleError(err, setError);
       setIsLoading(false);
     }
-  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onSaveTestResult, language, completedTestForRewrite, messagesTask1, messagesTask2, practiceMode]);
+  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onSaveTestResult, completedTestForRewrite, messagesTask1, messagesTask2, practiceMode]);
   
   const handleInitializeTask = useCallback(async (taskNumber: 1 | 2) => {
     if (targetScore === null) return;

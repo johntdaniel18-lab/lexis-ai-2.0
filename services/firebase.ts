@@ -107,7 +107,8 @@ export const saveNewTest = async (test: IeltsTest) => {
 };
 
 export const updateExistingTest = async (test: IeltsTest) => {
-  await updateDoc(doc(db, 'tests', test.id.toString()), { ...test });
+  // Use setDoc to completely overwrite the document, ensuring nested updates like image URLs are saved correctly.
+  await setDoc(doc(db, 'tests', test.id.toString()), test);
 };
 
 // 2. Drills (Admin managed, Public read)

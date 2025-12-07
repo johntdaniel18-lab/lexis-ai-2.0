@@ -38,9 +38,21 @@ export interface AreaForImprovement {
     feedback: string;
 }
 
+export interface DetailedFeedback {
+  positive: {
+    summary: string;
+    detail: string;
+  };
+  negative: {
+    summary: string;
+    detail: string;
+  };
+  suggestions: string[];
+}
+
 export interface CriterionScore {
   score: number;
-  feedback: string;
+  feedback: DetailedFeedback;
 }
 
 export interface Task1BandScores {

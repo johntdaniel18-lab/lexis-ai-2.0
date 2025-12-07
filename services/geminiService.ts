@@ -1,13 +1,52 @@
-
-
 // FIX: Import GenerateContentResponse to correctly type API call results.
 import { GoogleGenAI, Chat, Type, Part, GenerateContentResponse } from "@google/genai";
 // FIX: Import CriterionScore to correctly type the getEssayFeedback placeholder.
-import { IeltsTest, EssayFeedback, Improvement, Task1BandScores, Task2BandScores, VocabularyItem, ChatMessage, DrillCriterion, DrillContent, DrillType, CriterionScore, StaticDrillModule } from "../types";
+import { IeltsTest, EssayFeedback, Improvement, Task1BandScores, Task2BandScores, VocabularyItem, ChatMessage, DrillCriterion, DrillContent, DrillType, CriterionScore, StaticDrillModule, DetailedFeedback } from "../types";
 import { TASK_1_BAND_DESCRIPTORS, TASK_2_BAND_DESCRIPTORS } from "../bandDescriptors";
 import { retrieveContext } from "./ragService";
 
 const API_KEY_STORAGE_KEY = 'lexis-ai-api-key';
+
+/**
+ * A robust JSON parser that extracts a JSON object or array from a string,
+ * even if it's wrapped in markdown backticks.
+ * @param text The raw string response from the AI.
+ * @returns The parsed JSON object of type T.
+ * @throws An error if no valid JSON is found or if parsing fails.
+ */
+const parseJsonResponse = <T>(text: string): T => {
+  // Regex to find a JSON object or array, which might be wrapped in ```json ... ```
+  const jsonRegex = /```json\s*([\s\S]*?)\s*```|({[\s\S]*}|\[[\s\S]*])/;
+  const match = text.match(jsonRegex);
+
+  if (!match) {
+    console.error("Fatal: No JSON found in response text:", text);
+    throw new Error("Failed to parse JSON response: No JSON object or array was found in the AI's output.");
+  }
+  
+  // Group 1 is for markdown-wrapped JSON, Group 2 is for raw JSON object/array.
+  let jsonString = (match[1] || match[2] || '').trim();
+
+  if (!jsonString) {
+      console.error("Fatal: Regex matched but extracted empty JSON string from text:", text);
+      throw new Error("Failed to parse JSON response: A JSON block was detected but it was empty.");
+  }
+  
+  // FIX: Robustness for trailing commas
+  jsonString = jsonString.replace(/,(?=\s*[}\]])/g, '');
+
+  try {
+    return JSON.parse(jsonString);
+  } catch (e: any) {
+    console.error("Fatal: Failed to parse extracted JSON string.", {
+      originalText: text,
+      extractedJson: jsonString,
+      error: e.message,
+    });
+    throw new Error(`Failed to parse JSON response. The AI returned malformed JSON. Details: ${e.message}`);
+  }
+};
+
 
 const withRetry = async <T,>(
   apiCall: () => Promise<T>,
@@ -90,17 +129,22 @@ const getAiClient = (explicitKey?: string): GoogleGenAI => {
 const parseVocabularyAndText = (text: string): { text: string; vocabulary: VocabularyItem[]; suggestions: string[] } => {
   const vocabRegex = /```json\s*([\s\S]*?)\s*```/;
   const match = text.match(vocabRegex);
+  // Always strip the JSON block from the text to be displayed, regardless of parse success.
+  const cleanedText = text.replace(vocabRegex, '').trim();
 
   if (match && match[1]) {
     try {
-      const parsedJson = JSON.parse(match[1]);
+      let jsonString = match[1].trim();
+      // Remove trailing commas before closing braces/brackets to prevent parsing errors
+      jsonString = jsonString.replace(/,(?=\s*[}\]])/g, '');
+
+      const parsedJson = JSON.parse(jsonString);
       let vocabulary: VocabularyItem[] = [];
       let suggestions: string[] = [];
 
       if (Array.isArray(parsedJson)) {
-        // Backward compatibility for old array-only format
         vocabulary = parsedJson;
-      } else if (typeof parsedJson === 'object') {
+      } else if (typeof parsedJson === 'object' && parsedJson !== null) { // Check for null
         if (Array.isArray(parsedJson.vocabulary)) {
           vocabulary = parsedJson.vocabulary;
         }
@@ -113,14 +157,15 @@ const parseVocabularyAndText = (text: string): { text: string; vocabulary: Vocab
         (item: any) => item && typeof item.word === 'string' && typeof item.definition === 'string' && typeof item.example === 'string'
       );
       
-      const cleanedText = text.replace(vocabRegex, '').trim();
       return { text: cleanedText, vocabulary: validVocabulary, suggestions };
     } catch (e) {
-      console.error("Failed to parse JSON response:", e);
-      return { text, vocabulary: [], suggestions: [] };
+      console.error("Failed to parse JSON from chat response:", { error: e, originalJson: match[1] });
+      // Return cleaned text even if JSON is invalid, so raw JSON is not displayed.
+      return { text: cleanedText, vocabulary: [], suggestions: [] };
     }
   }
 
+  // No JSON block found, return original text.
   return { text, vocabulary: [], suggestions: [] };
 };
 
@@ -129,11 +174,12 @@ export const startPreparationChat = async (test: IeltsTest, taskNumber: 1 | 2, t
   const ai = getAiClient();
   const model = 'gemini-2.5-flash';
   const languageName = language === 'vi' ? 'Vietnamese' : 'English';
-  // FIX: Define the `task` variable based on the `taskNumber` to resolve "Cannot find name 'task'" errors.
   const task = test.tasks[taskNumber - 1];
   
   const commonRules = `
 **LANGUAGE RULE:** You MUST conduct this entire conversation in ${languageName}.
+**STYLING RULE:** You MUST use Markdown's "bold" syntax (**text**) to emphasize critical keywords or phrases.
+**READABILITY RULE:** Your responses MUST be easy to read. Use short, distinct paragraphs separated by a line break. Use bulleted lists (* item) for examples or multiple points. Keep sentences concise and direct.
 **TERMINOLOGY RULE:** All specific IELTS terminology (e.g., Task 1, Task 2, Coherence and Cohesion, Lexical Resource) MUST ALWAYS remain in English.
 **OUTPUT FORMAT RULE:** At the very end of *every* response, you MUST provide a JSON block enclosed in \`\`\`json ... \`\`\`. This JSON object MUST contain two keys:
 1. "vocabulary": An array of objects (keys: 'word', 'definition', 'example') if you explicitly introduced new vocabulary in the text, otherwise an empty array.
@@ -189,7 +235,7 @@ ${ragInstruction}
 
 Follow this structured 6-step process. Ask one question at a time. Do not move to the next step until the current one is complete.
 
-Step 1: UNDERSTAND THE PROMPT. Help the student understand the question type and what it asks for.
+Step 1: UNDERSTAND THE PROMPT. Help the student to understand the question type and what it asks for.
 
 Step 2: BRAINSTORM IDEAS. Guide them to brainstorm 2-3 main ideas that will become their body paragraphs.
 
@@ -315,7 +361,7 @@ export const getEssayOutlines = async (
         },
     }));
 
-    return JSON.parse(response.text);
+    return parseJsonResponse<{ task1Outline?: string; task2Outline?: string }>(response.text);
 };
 
 
@@ -327,7 +373,7 @@ export const getEssayFeedback = async (
   language: 'en' | 'vi'
 ): Promise<EssayFeedback> => {
   const ai = getAiClient();
-  const model = 'gemini-2.5-flash'; // Use Flash and enhance with thinking budget
+  const model = 'gemini-2.5-flash';
   
   const contextQuery = `${essay1} ${essay2}`;
   const context = retrieveContext(contextQuery);
@@ -338,20 +384,19 @@ export const getEssayFeedback = async (
   const task2BandDescriptors = essay2 ? TASK_2_BAND_DESCRIPTORS : "Task 2 essay not provided.";
 
   const prompt = `
-    You are an extremely strict and detailed IELTS writing examiner. Your task is to provide a thorough, constructive, and comprehensive review of a student's writing.
+    You are a Senior IELTS Examiner with 15 years of experience, known for your meticulous, direct, and critical feedback. Your analysis is unforgiving. You do not sugar-coat your critique.
     The student's target band score is ${targetScore}.
     ${languageInstruction}
 
     **CRITICAL INSTRUCTIONS:**
     1.  **JSON ONLY:** Your entire response MUST be a single, valid JSON object that conforms to the provided schema. Do not include any text, notes, or explanations outside of the JSON structure.
-    2.  **EXPERT CONTEXT:** You MUST use the provided expert context as the primary source of truth for your evaluation. Base your feedback on this information. Do not mention the word "CONTEXT".
-    3.  **BAND CALIBRATION:** Calibrate all your feedback and suggestions to the student's target band score. For a student aiming for ${targetScore}, suggest vocabulary and grammatical structures that would help them achieve a score of ${targetScore + 0.5}, but do not suggest overly complex Band 9.0 language if it is inappropriate for their level.
+    2.  **EXPERT CONTEXT:** You MUST use the provided expert context and official band descriptors as the primary source of truth for your evaluation. Do not mention the word "CONTEXT".
+    3.  **BAND CALIBRATION:** Calibrate all your feedback and suggestions to the student's target band score. Every piece of feedback you give, positive or negative, must be explicitly justified by referencing the official IELTS band descriptors. For a student aiming for Band ${targetScore}, you must precisely explain why a specific mistake keeps them at a lower band, and what a Band ${targetScore + 0.5}+ alternative would look like.
 
     **ANALYSIS PROCESS (Follow these steps internally before generating the JSON):**
     1.  Read both essays and their corresponding prompts.
-    2.  Analyze each essay paragraph by paragraph.
-    3.  For each paragraph, identify all issues and strengths related to the four official IELTS criteria (Task Response, Coherence & Cohesion, Lexical Resource, Grammatical Range & Accuracy).
-    4.  Synthesize all your notes into the final, structured JSON response.
+    2.  Analyze each essay paragraph by paragraph against the four official IELTS criteria.
+    3.  Synthesize all your notes into the final, structured JSON response.
 
     **TEST & STUDENT DATA:**
     - Test Prompts:
@@ -369,22 +414,51 @@ export const getEssayFeedback = async (
     **Your Task:**
     Provide a detailed, criteria-based evaluation. Adhere strictly to the JSON schema and the following instructions for each field.
 
-    1.  **Score Generation:** Score each task against the 4 criteria. Provide a specific score (e.g., 6.0, 6.5) and concise feedback for each. If a task is not submitted, give all its criteria scores as 0.
+    1.  **Score Generation:** For each of the 4 criteria in each task, provide:
+        - A specific score (e.g., 6.0, 6.5).
+        - A structured 'feedback' object containing:
+            - 'positive': An object with a 'summary' (a single, concise sentence) and a 'detail' (a paragraph where you **highlight critical keywords with Markdown's "bold" syntax** like this: **keyword**).
+            - 'negative': An object with a 'summary' and a 'detail' with highlights.
+            - 'suggestions': An array of 2-3 short, actionable strings for a checklist.
+        - If a task is not submitted, give all its criteria scores as 0 and provide boilerplate feedback.
     2.  **Overall Feedback:** Write a constructive summary, referencing the student's target score.
-    3.  **Strengths:** Identify 2-3 clear strengths from their writing.
-    4.  **Areas for Improvement:** Identify 2-3 of the most critical weaknesses. For each, give a 'title' (e.g., "Lack of Complex Sentences") and actionable 'feedback'.
+    3.  **Strengths:** Identify 2-3 clear, high-level strengths from their writing.
+    4.  **Areas for Improvement:** Identify 2-3 of the most critical overall weaknesses. For each, give a 'title' (e.g., "Lack of Complex Sentences") and actionable 'feedback'.
     5.  **Improvements (Text-level):** Generate 10-15 improvement objects. Follow these rules STRICTLY:
         -   'originalText': Quote the **shortest possible string** from the essay that contains an error or could be improved. This MUST be a short phrase (2-5 words), NOT a full sentence.
-        -   'improvedText': Provide ONLY the corrected or improved version of the 'originalText'. For example, if 'originalText' is "a lot of benefits", 'improvedText' should be "a multitude of benefits". DO NOT include the original text or any markdown in your response for this field.
-        -   'explanation': Provide a short, clear reason for the change. Be proactive in suggesting more academic alternatives for simple words.
+        -   'improvedText': Provide ONLY the corrected or improved version of the 'originalText'.
+        -   'explanation': Provide a short, clear reason for the change.
         -   'criterion': Link the improvement to one of the four official IELTS criteria.
   `;
+  
+  const structuredFeedbackDetailSchema = {
+    type: Type.OBJECT,
+    properties: {
+        summary: { type: Type.STRING, description: "A single, concise summary sentence of the feedback point." },
+        detail: { type: Type.STRING, description: "A detailed paragraph. Use Markdown's **bold** syntax to highlight critical keywords/phrases." }
+    },
+    required: ['summary', 'detail']
+  };
+
+  const detailedFeedbackSchema = {
+    type: Type.OBJECT,
+    properties: {
+      positive: structuredFeedbackDetailSchema,
+      negative: structuredFeedbackDetailSchema,
+      suggestions: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: "An array of 2-3 short, actionable suggestion strings presented as a checklist."
+      },
+    },
+    required: ['positive', 'negative', 'suggestions']
+  };
 
   const criterionScoreSchema = {
     type: Type.OBJECT,
     properties: {
       score: { type: Type.NUMBER },
-      feedback: { type: Type.STRING },
+      feedback: detailedFeedbackSchema,
     },
     required: ['score', 'feedback']
   };
@@ -393,7 +467,6 @@ export const getEssayFeedback = async (
     type: Type.OBJECT,
     properties: {
       id: { type: Type.STRING, description: 'A unique ID for this improvement, e.g., "imp-1"' },
-      // FIX: Removed invalid enum constraint on INTEGER type. The 'enum' property is only valid for STRING types in the Gemini API.
       taskNumber: { type: Type.INTEGER }, 
       originalText: { type: Type.STRING },
       improvedText: { type: Type.STRING },
@@ -456,11 +529,11 @@ export const getEssayFeedback = async (
     config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        thinkingConfig: { thinkingBudget: 16384 }, // Enhance reasoning for better feedback
+        thinkingConfig: { thinkingBudget: 24576 }, // MAX thinking budget for gemini-2.5-flash
     },
   }));
 
-  const result = JSON.parse(response.text) as Omit<EssayFeedback, 'overallScore'>;
+  const result = parseJsonResponse<Omit<EssayFeedback, 'overallScore'>>(response.text);
 
   // Add IDs to improvements if they are missing
   if (result.improvements) {
@@ -584,7 +657,7 @@ export const generateDrillContent = async (criterion: DrillCriterion, topic: str
         },
     }));
 
-    return JSON.parse(response.text);
+    return parseJsonResponse<DrillContent>(response.text);
 };
 
 
@@ -667,5 +740,5 @@ export const generateDrillFromRawText = async (rawText: string, apiKey?: string)
         },
     }));
 
-    return JSON.parse(response.text);
+    return parseJsonResponse<StaticDrillModule>(response.text);
 };

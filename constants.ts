@@ -1,6 +1,6 @@
 import { IeltsTest } from './types';
 
-export const TESTS_VERSION = 5;
+export const TESTS_VERSION = 6;
 
 export const IELTS_TESTS: IeltsTest[] = [
   {
@@ -371,6 +371,32 @@ export const IELTS_TESTS: IeltsTest[] = [
       },
       {
         prompt: "Many university students live with their families, while others live away from home because their universities are in different places. What are the advantages and disadvantages of both situations?"
+      }
+    ]
+  },
+  {
+    id: 21,
+    title: "Test 21",
+    tags: ["Bar Chart", "Energy Production", "France"],
+    tasks: [
+      {
+        prompt: "The chart below shows a comparison of diﬀerent kinds of energy production in France in 1995 and 2005.",
+        imageUrl: "https://i.postimg.cc/yd4Zw478/energy-production-in-france-1995-and-2005.png",
+        keyInformation: `
+Chart title: Energy Production in France (1995 and 2005)
+Categories (X-Axis): 1995, 2005
+X Axis Label: 
+Y Axis Label: 
+Data series:
+1 Gas, values: 29.63, 30.31
+2 Coal, values: 29.8, 30.93
+3 Petro, values: 29.27, 19.55
+4 Nuclear, values: 6.4, 10.1
+5 Other, values: 4.9, 9.1
+`
+      },
+      {
+        prompt: "Task 2 for this test has not been provided. Please select another test for Task 2 practice."
       }
     ]
   }

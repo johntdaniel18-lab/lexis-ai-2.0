@@ -1,3 +1,5 @@
+
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { IeltsTest, TestPhase, CompletedTest, VocabularyItem, ChatMessage, PracticeMode, EssayFeedback } from '../types';
 import TargetScoreSelectionPhase from './TargetScoreSelectionPhase';
@@ -52,6 +54,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
   const [outlines, setOutlines] = useState<{ task1Outline?: string; task2Outline?: string } | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<EssayFeedback | null>(null);
   const [submittedEssay1, setSubmittedEssay1] = useState<string>('');
@@ -107,6 +110,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
     }
     setIsLoading(true);
     setError(null);
+    setLoadingStatus('Initializing AI analysis...');
     setSubmittedEssay1(essay1);
     setSubmittedEssay2(essay2);
     
@@ -118,7 +122,8 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
     }, [] as VocabularyItem[]);
 
     try {
-      const result = await getEssayFeedback(test, essay1, essay2, targetScore, 'en');
+      // FIX: The getEssayFeedback function expects an onProgress callback as the 6th argument. Passing setLoadingStatus to provide real-time updates.
+      const result = await getEssayFeedback(test, essay1, essay2, targetScore, language, setLoadingStatus);
       setFeedback(result);
       
       const testResultPayload = {
@@ -144,7 +149,7 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
       handleError(err, setError);
       setIsLoading(false);
     }
-  }, [test, targetScore, vocabularyTask1, vocabularyTask2, onSaveTestResult, completedTestForRewrite, messagesTask1, messagesTask2, practiceMode]);
+  }, [test, targetScore, language, vocabularyTask1, vocabularyTask2, onSaveTestResult, completedTestForRewrite, messagesTask1, messagesTask2, practiceMode]);
   
   const handleInitializeTask = useCallback(async (taskNumber: 1 | 2) => {
     if (targetScore === null) return;
@@ -254,8 +259,8 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, practiceMode, onExit, onS
       return (
         <div className="text-center p-12 bg-white rounded-lg shadow-lg border border-slate-200">
           <Spinner />
-          <h3 className="mt-4 text-xl font-semibold text-slate-700">Your AI tutor is analyzing your essays...</h3>
-          <p className="text-slate-500 mt-2">This may take a moment. Please wait.</p>
+          <h3 className="mt-4 text-xl font-semibold text-slate-700">{loadingStatus || 'Your AI tutor is analyzing your essays...'}</h3>
+          <p className="text-slate-500 mt-2">This is a multi-step process and may take up to 2 minutes. Please do not close this window.</p>
         </div>
       );
     }

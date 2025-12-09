@@ -1,7 +1,7 @@
 // FIX: Import GenerateContentResponse to correctly type API call results.
 import { GoogleGenAI, Chat, Type, Part, GenerateContentResponse } from "@google/genai";
 // FIX: Import CriterionScore to correctly type the getEssayFeedback placeholder.
-import { IeltsTest, EssayFeedback, Improvement, Task1BandScores, Task2BandScores, VocabularyItem, ChatMessage, DrillCriterion, DrillContent, DrillType, CriterionScore, StaticDrillModule, DetailedFeedback } from "../types";
+import { IeltsTest, TestTask, EssayFeedback, Improvement, Task1BandScores, Task2BandScores, VocabularyItem, ChatMessage, DrillCriterion, DrillContent, DrillType, CriterionScore, StaticDrillModule, DetailedFeedback } from "../types";
 import { TASK_1_BAND_DESCRIPTORS, TASK_2_BAND_DESCRIPTORS } from "../bandDescriptors";
 import { retrieveContext } from "./ragService";
 
@@ -364,110 +364,61 @@ export const getEssayOutlines = async (
     return parseJsonResponse<{ task1Outline?: string; task2Outline?: string }>(response.text);
 };
 
+// --- TWO-PASS FEEDBACK REFACTOR ---
 
-export const getEssayFeedback = async (
-  test: IeltsTest,
-  essay1: string,
-  essay2: string,
-  targetScore: number,
-  language: 'en' | 'vi'
-): Promise<EssayFeedback> => {
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+interface EditorFindings {
+  improvements: Improvement[];
+}
+
+const getEditorFeedback = async (
+  task: TestTask,
+  essay: string,
+  taskNumber: 1 | 2
+): Promise<EditorFindings> => {
   const ai = getAiClient();
   const model = 'gemini-2.5-flash';
-  
-  const contextQuery = `${essay1} ${essay2}`;
-  const context = retrieveContext(contextQuery);
 
-  const languageInstruction = language === 'vi' ? 'All feedback and explanations MUST be in Vietnamese, but keep IELTS-specific terms (like "Lexical Resource") in English.' : 'All feedback and explanations MUST be in English.';
-
-  const task1BandDescriptors = essay1 ? TASK_1_BAND_DESCRIPTORS : "Task 1 essay not provided.";
-  const task2BandDescriptors = essay2 ? TASK_2_BAND_DESCRIPTORS : "Task 2 essay not provided.";
+  const dataGroundingInstruction = task.keyInformation ? `
+**FACT-CHECKING SOURCE:** You MUST use the following key information as the single source of truth for all statistics and facts in this task. Any deviation in the student's essay from this data should be flagged as an error under the 'TaskAchievement' or 'TaskResponse' criterion.
+---
+${task.keyInformation}
+---
+` : '';
 
   const prompt = `
-    You are a Senior IELTS Examiner with 15 years of experience, known for your meticulous, direct, and critical feedback. Your analysis is unforgiving. You do not sugar-coat your critique.
-    The student's target band score is ${targetScore}.
-    ${languageInstruction}
-
-    **CRITICAL INSTRUCTIONS:**
-    1.  **JSON ONLY:** Your entire response MUST be a single, valid JSON object that conforms to the provided schema. Do not include any text, notes, or explanations outside of the JSON structure.
-    2.  **EXPERT CONTEXT:** You MUST use the provided expert context and official band descriptors as the primary source of truth for your evaluation. Do not mention the word "CONTEXT".
-    3.  **BAND CALIBRATION:** Calibrate all your feedback and suggestions to the student's target band score. Every piece of feedback you give, positive or negative, must be explicitly justified by referencing the official IELTS band descriptors. For a student aiming for Band ${targetScore}, you must precisely explain why a specific mistake keeps them at a lower band, and what a Band ${targetScore + 0.5}+ alternative would look like.
-
-    **ANALYSIS PROCESS (Follow these steps internally before generating the JSON):**
-    1.  Read both essays and their corresponding prompts.
-    2.  Analyze each essay paragraph by paragraph against the four official IELTS criteria.
-    3.  Synthesize all your notes into the final, structured JSON response.
-
-    **TEST & STUDENT DATA:**
-    - Test Prompts:
-      - Task 1: ${test.tasks[0].prompt}
-      - Task 2: ${test.tasks[1].prompt}
-    - Student's Essays:
-      - Essay 1: ${essay1 || "Not submitted."}
-      - Essay 2: ${essay2 || "Not submitted."}
-    - IELTS Band Descriptors (for your reference):
-      - Task 1: ${task1BandDescriptors}
-      - Task 2: ${task2BandDescriptors}
-    - Expert Context:
-      ${context}
-
-    **Your Task:**
-    Provide a detailed, criteria-based evaluation. Adhere strictly to the JSON schema and the following instructions for each field.
-
-    1.  **Score Generation:** For each of the 4 criteria in each task, provide:
-        - A specific score (e.g., 6.0, 6.5).
-        - A structured 'feedback' object containing:
-            - 'positive': An object with a 'summary' (a single, concise sentence) and a 'detail' (a paragraph where you **highlight critical keywords with Markdown's "bold" syntax** like this: **keyword**).
-            - 'negative': An object with a 'summary' and a 'detail' with highlights.
-            - 'suggestions': An array of 2-3 short, actionable strings for a checklist.
-        - If a task is not submitted, give all its criteria scores as 0 and provide boilerplate feedback.
-    2.  **Overall Feedback:** Write a constructive summary, referencing the student's target score.
-    3.  **Strengths:** Identify 2-3 clear, high-level strengths from their writing.
-    4.  **Areas for Improvement:** Identify 2-3 of the most critical overall weaknesses. For each, give a 'title' (e.g., "Lack of Complex Sentences") and actionable 'feedback'.
-    5.  **Improvements (Text-level):** Generate 10-15 improvement objects. Follow these rules STRICTLY:
-        -   'originalText': Quote the **shortest possible string** from the essay that contains an error or could be improved. This MUST be a short phrase (2-5 words), NOT a full sentence.
-        -   'improvedText': Provide ONLY the corrected or improved version of the 'originalText'.
-        -   'explanation': Provide a short, clear reason for the change.
-        -   'criterion': Link the improvement to one of the four official IELTS criteria.
-  `;
+  You are an AI Editor, focused solely on identifying errors and areas for improvement in an IELTS essay. Your task is to act as the first pass in a two-pass analysis system.
   
-  const structuredFeedbackDetailSchema = {
-    type: Type.OBJECT,
-    properties: {
-        summary: { type: Type.STRING, description: "A single, concise summary sentence of the feedback point." },
-        detail: { type: Type.STRING, description: "A detailed paragraph. Use Markdown's **bold** syntax to highlight critical keywords/phrases." }
-    },
-    required: ['summary', 'detail']
-  };
+  **CRITICAL INSTRUCTIONS:**
+  1.  **JSON ONLY:** Your entire response MUST be a single, valid JSON object that conforms to the provided schema.
+  2.  **DO NOT SCORE:** You MUST NOT provide any band scores or overall performance judgments. Your job is only to find and list errors.
+  3.  **FOCUS:** Your analysis must be limited to:
+      -   **Grammar & Accuracy:** Grammatical errors, punctuation mistakes, incorrect sentence structure.
+      -   **Lexical Resource:** Repetitive vocabulary, informal language, incorrect word choice (collocation).
+      -   **Fact-Checking (if applicable):** Compare the essay against the provided 'KEY INFORMATION' and flag any factual inaccuracies.
+      
+  **TASK DATA:**
+  - Task Prompt: ${task.prompt}
+  ${dataGroundingInstruction}
+  - Student's Essay: ${essay}
 
-  const detailedFeedbackSchema = {
-    type: Type.OBJECT,
-    properties: {
-      positive: structuredFeedbackDetailSchema,
-      negative: structuredFeedbackDetailSchema,
-      suggestions: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-          description: "An array of 2-3 short, actionable suggestion strings presented as a checklist."
-      },
-    },
-    required: ['positive', 'negative', 'suggestions']
-  };
-
-  const criterionScoreSchema = {
-    type: Type.OBJECT,
-    properties: {
-      score: { type: Type.NUMBER },
-      feedback: detailedFeedbackSchema,
-    },
-    required: ['score', 'feedback']
-  };
+  **YOUR TASK:**
+  Generate a list of "improvement" objects. Follow these rules STRICTLY for each object:
+  -   'id': A unique ID for this improvement, e.g., "imp-1", "imp-2".
+  -   'taskNumber': The task number, which is ${taskNumber}.
+  -   'originalText': Quote the SHORTEST possible string from the essay that contains an error or could be improved. This MUST be a short phrase (2-5 words), NOT a full sentence.
+  -   'improvedText': Provide ONLY the corrected or improved version of the 'originalText'.
+  -   'explanation': Provide a short, clear reason for the change.
+  -   'criterion': Link the improvement to ONE of the four official IELTS criteria ('TaskAchievement', 'TaskResponse', 'CoherenceAndCohesion', 'LexicalResource', 'GrammaticalRangeAndAccuracy').
+  -   'source': This should always be 'AI'.
+  `;
 
   const improvementSchema = {
     type: Type.OBJECT,
     properties: {
-      id: { type: Type.STRING, description: 'A unique ID for this improvement, e.g., "imp-1"' },
-      taskNumber: { type: Type.INTEGER }, 
+      id: { type: Type.STRING },
+      taskNumber: { type: Type.INTEGER },
       originalText: { type: Type.STRING },
       improvedText: { type: Type.STRING },
       explanation: { type: Type.STRING },
@@ -477,111 +428,275 @@ export const getEssayFeedback = async (
     required: ['id', 'taskNumber', 'originalText', 'improvedText', 'explanation', 'criterion', 'source']
   };
 
-  const areaForImprovementSchema = {
-      type: Type.OBJECT,
-      properties: {
-          title: { type: Type.STRING },
-          feedback: { type: Type.STRING }
-      },
-      required: ['title', 'feedback']
-  };
-
   const responseSchema = {
     type: Type.OBJECT,
     properties: {
-      overallFeedback: { type: Type.STRING },
-      improvements: { type: Type.ARRAY, items: improvementSchema },
-      strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-      areasForImprovement: { type: Type.ARRAY, items: areaForImprovementSchema },
-      detailedScores: {
-        type: Type.OBJECT,
-        properties: {
-          task1: {
-            type: Type.OBJECT,
-            properties: {
-              TaskAchievement: criterionScoreSchema,
-              CoherenceAndCohesion: criterionScoreSchema,
-              LexicalResource: criterionScoreSchema,
-              GrammaticalRangeAndAccuracy: criterionScoreSchema,
-            },
-            required: ['TaskAchievement', 'CoherenceAndCohesion', 'LexicalResource', 'GrammaticalRangeAndAccuracy']
-          },
-          task2: {
-            type: Type.OBJECT,
-            properties: {
-              TaskResponse: criterionScoreSchema,
-              CoherenceAndCohesion: criterionScoreSchema,
-              LexicalResource: criterionScoreSchema,
-              GrammaticalRangeAndAccuracy: criterionScoreSchema,
-            },
-            required: ['TaskResponse', 'CoherenceAndCohesion', 'LexicalResource', 'GrammaticalRangeAndAccuracy']
-          },
-        },
-        required: ['task1', 'task2']
-      },
+      improvements: { type: Type.ARRAY, items: improvementSchema }
     },
-    required: ['overallFeedback', 'improvements', 'strengths', 'areasForImprovement', 'detailedScores']
+    required: ['improvements']
   };
-  
+
   const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
     model: model,
     contents: prompt,
     config: {
-        responseMimeType: "application/json",
-        responseSchema: responseSchema,
-        thinkingConfig: { thinkingBudget: 24576 }, // MAX thinking budget for gemini-2.5-flash
+      responseMimeType: "application/json",
+      responseSchema: responseSchema,
     },
   }));
 
-  const result = parseJsonResponse<Omit<EssayFeedback, 'overallScore'>>(response.text);
+  const result = parseJsonResponse<EditorFindings>(response.text);
 
-  // Add IDs to improvements if they are missing
   if (result.improvements) {
+    // Ensure IDs are sequentially correct in case the AI messes up
     result.improvements.forEach((imp: Improvement, index: number) => {
-        if (!imp.id) {
-            imp.id = `imp-${Date.now()}-${index}`;
-        }
-        if (!imp.source) {
-            imp.source = 'AI';
-        }
+        imp.id = `imp-${index + 1}`;
     });
   }
+  return result;
+};
 
-  // --- START: ACCURATE OVERALL SCORE CALCULATION ---
-  const roundToHalf = (value: number): number => {
-    return Math.round(value * 2) / 2;
+
+const getExaminerFeedback = async (
+  task: TestTask,
+  essay: string,
+  targetScore: number,
+  editorFindings: EditorFindings,
+  taskNumber: 1 | 2,
+  language: 'en' | 'vi'
+) => {
+  const ai = getAiClient();
+  const model = 'gemini-3-pro-preview'; // UPGRADED MODEL FOR ACCURACY
+  const languageInstruction = language === 'vi' ? 'All feedback and explanations MUST be in Vietnamese, but keep IELTS-specific terms (like "Lexical Resource") in English.' : 'All feedback and explanations MUST be in English.';
+  const bandDescriptors = taskNumber === 1 ? TASK_1_BAND_DESCRIPTORS : TASK_2_BAND_DESCRIPTORS;
+
+  const prompt = `
+  You are a Senior IELTS Examiner with 15 years of experience. You are performing the SECOND PASS of a two-pass analysis. The first pass, done by an "Editor", has already identified specific errors. Your job is to use these findings as EVIDENCE to provide a holistic, criteria-based score.
+
+  **CRITICAL INSTRUCTIONS:**
+  1.  **JSON ONLY:** Your entire response MUST be a single, valid JSON object that conforms to the provided schema for a single task.
+  2.  **STRICT & ANALYTICAL:** You MUST be a strict grader. Justify your scores by explaining **how the essay meets the descriptors for that band and fails to meet the descriptors for the next band up.**
+  3.  **USE THE EVIDENCE:** You MUST reference the 'Editor's Findings' below to justify your scores for Lexical Resource and Grammar. For example, if the editor found 5 grammatical errors, you must explain how this prevents the student from achieving a higher band score in Grammatical Range & Accuracy.
+  4.  **HOLISTIC VIEW:** Your analysis for Task Achievement/Response and Coherence & Cohesion should be based on your own reading of the full essay.
+  5.  **BAND CALIBRATION:** Calibrate all feedback to the student's target band score of ${targetScore}.
+
+  **EXAMPLE OF JUSTIFICATION:**
+  For a score of 6.0 in Lexical Resource, you might write in the 'detail' field: "The writer uses a sufficient range of vocabulary (e.g., 'mitigate', 'consequently'), meeting the Band 6 descriptor. **However**, occasional imprecise word choices (e.g., 'big problem' instead of 'significant issue') and a lack of less common vocabulary prevent a score of 7."
+
+  **TEST & STUDENT DATA:**
+  - Task Prompt: ${task.prompt}
+  - Student's Essay: ${essay}
+  - Editor's Findings (Evidence of Errors):
+    ${JSON.stringify(editorFindings.improvements, null, 2)}
+  
+  - IELTS Band Descriptors (for your reference):
+    ${bandDescriptors}
+
+  **YOUR TASK:**
+  Provide a detailed evaluation for this single task. Adhere strictly to the JSON schema.
+  -   **Score Generation:** For each of the 4 criteria, provide a score and detailed feedback (positive, negative, suggestions).
+  -   **overallTaskFeedback:** Write a constructive summary for THIS TASK ONLY.
+  -   **strengths & areasForImprovement:** Identify 2-3 strengths and 2-3 weaknesses for THIS TASK ONLY.
+  `;
+
+    const structuredFeedbackDetailSchema = {
+      type: Type.OBJECT,
+      properties: {
+          summary: { type: Type.STRING, description: "A single, concise summary sentence of the feedback point." },
+          detail: { type: Type.STRING, description: "A detailed paragraph. Use Markdown's **bold** syntax to highlight critical keywords/phrases." }
+      },
+      required: ['summary', 'detail']
+    };
+
+    const detailedFeedbackSchema = {
+      type: Type.OBJECT,
+      properties: {
+        positive: structuredFeedbackDetailSchema,
+        negative: structuredFeedbackDetailSchema,
+        suggestions: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: "An array of 2-3 short, actionable suggestion strings presented as a checklist."
+        },
+      },
+      required: ['positive', 'negative', 'suggestions']
+    };
+
+    const criterionScoreSchema = {
+      type: Type.OBJECT,
+      properties: {
+        score: { type: Type.NUMBER },
+        feedback: detailedFeedbackSchema,
+      },
+      required: ['score', 'feedback']
+    };
+
+    const areaForImprovementSchema = {
+        type: Type.OBJECT,
+        properties: {
+            title: { type: Type.STRING },
+            feedback: { type: Type.STRING }
+        },
+        required: ['title', 'feedback']
+    };
+
+    const task1Schema = {
+      type: Type.OBJECT,
+      properties: {
+        TaskAchievement: criterionScoreSchema,
+        CoherenceAndCohesion: criterionScoreSchema,
+        LexicalResource: criterionScoreSchema,
+        GrammaticalRangeAndAccuracy: criterionScoreSchema,
+      },
+      required: ['TaskAchievement', 'CoherenceAndCohesion', 'LexicalResource', 'GrammaticalRangeAndAccuracy']
+    };
+
+    const task2Schema = {
+      type: Type.OBJECT,
+      properties: {
+        TaskResponse: criterionScoreSchema,
+        CoherenceAndCohesion: criterionScoreSchema,
+        LexicalResource: criterionScoreSchema,
+        GrammaticalRangeAndAccuracy: criterionScoreSchema,
+      },
+      required: ['TaskResponse', 'CoherenceAndCohesion', 'LexicalResource', 'GrammaticalRangeAndAccuracy']
+    };
+    
+    const responseSchema = {
+      type: Type.OBJECT,
+      properties: {
+        overallTaskFeedback: { type: Type.STRING },
+        strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+        areasForImprovement: { type: Type.ARRAY, items: areaForImprovementSchema },
+        detailedScores: taskNumber === 1 ? task1Schema : task2Schema,
+      },
+      required: ['overallTaskFeedback', 'strengths', 'areasForImprovement', 'detailedScores']
+    };
+
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+      model: model,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+        thinkingConfig: { thinkingBudget: 32768 },
+      },
+    }));
+
+    return parseJsonResponse<any>(response.text);
+};
+
+
+export const getEssayFeedback = async (
+  test: IeltsTest,
+  essay1: string,
+  essay2: string,
+  targetScore: number,
+  language: 'en' | 'vi',
+  onProgress: (status: string) => void
+): Promise<EssayFeedback> => {
+  const hasTask1 = essay1 && essay1.trim().length > 0;
+  const hasTask2 = essay2 && essay2.trim().length > 0;
+  const totalSteps = (hasTask1 ? 2 : 0) + (hasTask2 ? 2 : 0);
+  let currentStep = 0;
+
+  const COOL_DOWN_MS = 30000;
+
+  let editorFindings1: EditorFindings | null = null;
+  let editorFindings2: EditorFindings | null = null;
+  let examinerFeedback1: any = null;
+  let examinerFeedback2: any = null;
+
+  if (hasTask1) {
+    currentStep++;
+    onProgress(`Step ${currentStep}/${totalSteps}: Analyzing Task 1 text for errors...`);
+    editorFindings1 = await getEditorFeedback(test.tasks[0], essay1, 1);
+    // BUG FIX: Prefix all Task 1 IDs to ensure uniqueness
+    editorFindings1.improvements.forEach(imp => { imp.id = `t1-${imp.id}`; });
+    
+    onProgress(`Cooling down... (30s)`);
+    await delay(COOL_DOWN_MS);
+
+    currentStep++;
+    onProgress(`Step ${currentStep}/${totalSteps}: Grading Task 1 based on findings...`);
+    examinerFeedback1 = await getExaminerFeedback(test.tasks[0], essay1, targetScore, editorFindings1, 1, language);
+
+    if (hasTask2) {
+      onProgress(`Cooling down... (30s)`);
+      await delay(COOL_DOWN_MS);
+    }
+  }
+
+  if (hasTask2) {
+    currentStep++;
+    onProgress(`Step ${currentStep}/${totalSteps}: Analyzing Task 2 text for errors...`);
+    editorFindings2 = await getEditorFeedback(test.tasks[1], essay2, 2);
+    // BUG FIX: Prefix all Task 2 IDs to ensure uniqueness
+    editorFindings2.improvements.forEach(imp => { imp.id = `t2-${imp.id}`; });
+
+    onProgress(`Cooling down... (30s)`);
+    await delay(COOL_DOWN_MS);
+
+    currentStep++;
+    onProgress(`Step ${currentStep}/${totalSteps}: Grading Task 2 based on findings...`);
+    examinerFeedback2 = await getExaminerFeedback(test.tasks[1], essay2, targetScore, editorFindings2, 2, language);
+  }
+
+  onProgress("Finalizing scores and report...");
+
+  const allImprovements = [
+    ...(editorFindings1?.improvements || []),
+    ...(editorFindings2?.improvements || [])
+  ];
+  
+  const overallFeedback = [examinerFeedback1?.overallTaskFeedback, examinerFeedback2?.overallTaskFeedback].filter(Boolean).join('\n\n');
+  const strengths = [...(examinerFeedback1?.strengths || []), ...(examinerFeedback2?.strengths || [])];
+  const areasForImprovement = [...(examinerFeedback1?.areasForImprovement || []), ...(examinerFeedback2?.areasForImprovement || [])];
+  
+  const boilerplateScore: CriterionScore = { score: 0, feedback: { positive: { summary: 'Not submitted.', detail: '' }, negative: { summary: 'Not submitted.', detail: '' }, suggestions: [] } };
+  
+  const finalDetailedScores = {
+    task1: examinerFeedback1?.detailedScores || { TaskAchievement: boilerplateScore, CoherenceAndCohesion: boilerplateScore, LexicalResource: boilerplateScore, GrammaticalRangeAndAccuracy: boilerplateScore },
+    task2: examinerFeedback2?.detailedScores || { TaskResponse: boilerplateScore, CoherenceAndCohesion: boilerplateScore, LexicalResource: boilerplateScore, GrammaticalRangeAndAccuracy: boilerplateScore }
   };
 
-  const calculateTaskAverage = (scores: Task1BandScores | Task2BandScores): number => {
-    if (!scores || Object.keys(scores).length === 0) return 0;
-    
-    const criteriaScores: (CriterionScore | undefined)[] = 'TaskAchievement' in scores 
-        ? [scores.TaskAchievement, scores.CoherenceAndCohesion, scores.LexicalResource, scores.GrammaticalRangeAndAccuracy]
-        : [scores.TaskResponse, scores.CoherenceAndCohesion, scores.LexicalResource, scores.GrammaticalRangeAndAccuracy];
-
-    const validScores = criteriaScores.filter(c => c && typeof c.score === 'number').map(c => c!.score);
-    
+  const roundToHalf = (value: number): number => Math.round(value * 2) / 2;
+  const calculateTaskAverage = (scores: any, task: 1 | 2): number => {
+    if (!scores) return 0;
+    const criteria = task === 1 
+      ? [scores.TaskAchievement, scores.CoherenceAndCohesion, scores.LexicalResource, scores.GrammaticalRangeAndAccuracy]
+      : [scores.TaskResponse, scores.CoherenceAndCohesion, scores.LexicalResource, scores.GrammaticalRangeAndAccuracy];
+    const validScores = criteria.filter(c => c && typeof c.score === 'number').map(c => c!.score);
     if (validScores.length === 0) return 0;
-
-    const sum = validScores.reduce((acc, score) => acc + score, 0);
-    return sum / validScores.length;
+    return validScores.reduce((a, b) => a + b, 0) / validScores.length;
   };
 
-  const task1Average = calculateTaskAverage(result.detailedScores.task1);
-  const task2Average = calculateTaskAverage(result.detailedScores.task2);
+  const task1Average = calculateTaskAverage(finalDetailedScores.task1, 1);
+  const task2Average = calculateTaskAverage(finalDetailedScores.task2, 2);
 
-  const rawOverallScore = (task1Average + (task2Average * 2)) / 3;
+  let rawOverallScore = 0;
+  if (hasTask1 && hasTask2) {
+    rawOverallScore = (task1Average + (task2Average * 2)) / 3;
+  } else if (hasTask1) {
+    rawOverallScore = task1Average;
+  } else if (hasTask2) {
+    rawOverallScore = task2Average;
+  }
+  
   const finalOverallScore = roundToHalf(rawOverallScore);
 
-  // Add the calculated score to the final object.
   const finalResult: EssayFeedback = {
-    ...result,
     overallScore: finalOverallScore,
+    overallFeedback,
+    improvements: allImprovements,
+    strengths,
+    areasForImprovement,
+    detailedScores: finalDetailedScores,
   };
-  // --- END: ACCURATE OVERALL SCORE CALCULATION ---
-
+  
   return finalResult;
 };
+
 
 export const generateModelAnswer = async (prompt: string, taskNumber: 1 | 2): Promise<string> => {
     const ai = getAiClient();

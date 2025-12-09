@@ -96,7 +96,7 @@ const FeedbackSidebar: React.FC<FeedbackSidebarProps> = ({ improvements, selecte
                   <div className="text-sm text-slate-800 leading-relaxed">
                     <Suggestion original={imp.originalText} improved={imp.improvedText} />
                   </div>
-                  <p className="text-xs text-slate-500">{imp.explanation}</p>
+                  <p className="text-sm text-slate-500">{imp.explanation}</p>
                 </div>
               </div>
             );

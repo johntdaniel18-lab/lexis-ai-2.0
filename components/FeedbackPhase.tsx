@@ -175,9 +175,8 @@ const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({
                       <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-rose-100 mt-1">
                         <LightningIcon className="h-4 w-4 text-rose-500" />
                       </div>
-                      <div>
-                        <p className="font-semibold text-slate-800">{item.title}</p>
-                        <p className="text-sm text-slate-600">{item.feedback}</p>
+                      <div className="text-sm text-slate-600">
+                        <MarkdownRenderer text={`${item.title} ${item.feedback}`} />
                       </div>
                     </li>
                   ))}
@@ -195,7 +194,9 @@ const FeedbackPhase: React.FC<FeedbackPhaseProps> = ({
                       <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-emerald-100 mt-1">
                         <TrophyIcon className="h-4 w-4 text-emerald-500" />
                       </div>
-                      <p className="text-sm text-slate-700 pt-1">{strength}</p>
+                      <div className="text-sm text-slate-700">
+                        <MarkdownRenderer text={strength} />
+                      </div>
                     </li>
                   ))}
                   {(feedback.strengths || []).length === 0 && <p className="text-sm text-slate-400 italic">No specific strengths highlighted in this report.</p>}

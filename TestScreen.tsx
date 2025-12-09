@@ -39,6 +39,8 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
 
 
   const [isLoading, setIsLoading] = useState(false);
+  // FIX: Add loadingStatus state to display progress messages.
+  const [loadingStatus, setLoadingStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<EssayFeedback | null>(null);
   const [submittedEssay1, setSubmittedEssay1] = useState<string>('');
@@ -89,6 +91,8 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
     }
     setIsLoading(true);
     setError(null);
+    // FIX: Set initial loading status message.
+    setLoadingStatus('Initializing AI analysis...');
     setSubmittedEssay1(essay1);
     setSubmittedEssay2(essay2);
     
@@ -100,7 +104,8 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
     }, [] as VocabularyItem[]);
 
     try {
-      const result = await getEssayFeedback(test, essay1, essay2, targetScore, language);
+      // FIX: Pass setLoadingStatus as the 6th argument to getEssayFeedback.
+      const result = await getEssayFeedback(test, essay1, essay2, targetScore, language, setLoadingStatus);
       setFeedback(result);
       // FIX: Add missing chat history properties to the payload for onSaveTestResult.
       onSaveTestResult({
@@ -191,8 +196,9 @@ const TestScreen: React.FC<TestScreenProps> = ({ test, onSaveTestResult }) => {
       return (
         <div className="text-center p-12 bg-white rounded-lg shadow-lg border border-slate-200">
           <Spinner />
-          <h3 className="mt-4 text-xl font-semibold text-slate-700">Your AI tutor is analyzing your essays...</h3>
-          <p className="text-slate-500 mt-2">This may take a moment. Please wait.</p>
+          {/* FIX: Use loadingStatus state for more informative messages. */}
+          <h3 className="mt-4 text-xl font-semibold text-slate-700">{loadingStatus || 'Your AI tutor is analyzing your essays...'}</h3>
+          <p className="text-slate-500 mt-2">This is a multi-step process and may take up to 2 minutes. Please do not close this window.</p>
         </div>
       );
     }

@@ -100,11 +100,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
   const renderMCQ = (group: DrillGroup) => {
       return (
           <div className="space-y-6">
-              {(group.questions || []).map((q, idx) => {
-                  const isCorrect = userAnswers[q.id] === q.correctAnswer;
-                  const isWrong = isSubmitted && !isCorrect;
-                  
-                  return (
+              {(group.questions || []).map((q, idx) => (
                       <div key={q.id} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                           <div className="flex gap-3">
                               <span className="font-bold text-orange-600">{idx + 1}.</span>
@@ -138,7 +134,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                                           )
                                       })}
                                   </div>
-                                  {isWrong && q.explanation && (
+                                  {isSubmitted && userAnswers[q.id] !== q.correctAnswer && q.explanation && (
                                       <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded">
                                           <span className="font-bold">Explanation:</span> {q.explanation}
                                       </div>
@@ -146,8 +142,8 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
                               </div>
                           </div>
                       </div>
-                  );
-              })}
+                  )
+              )}
           </div>
       );
   };
@@ -171,8 +167,7 @@ const StaticDrillPlayer: React.FC<StaticDrillPlayerProps> = ({ module, onExit, o
               <div className="space-y-4">
                   {(group.questions || []).map((q, idx) => {
                       const isCorrect = userAnswers[q.id] === q.correctAnswer;
-                      const isWrong = isSubmitted && !isCorrect;
-
+                      
                       return (
                           <div key={q.id} className="flex items-center justify-between gap-4 p-2 hover:bg-slate-50 rounded">
                               <div className="flex items-center gap-3">
